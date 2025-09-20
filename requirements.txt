@@ -1,0 +1,17 @@
+#Data Squad & Core Libraries
+pandas
+xarray
+netcdf4
+sqlalchemy
+psycopg2-binary
+
+#AI Squad Libraries
+langchain
+langchain-community
+langchain-google-genai
+chromadb-client
+sentence-transformers
+
+#Frontend Squad Libraries
+streamlit
+plotly
