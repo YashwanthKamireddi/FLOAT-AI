@@ -9,7 +9,6 @@ psycopg2-binary
 langchain
 langchain-community
 langchain-google-genai
-chromadb-client
 sentence-transformers
 
 #Frontend Squad Libraries
