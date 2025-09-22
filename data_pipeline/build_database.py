@@ -1,5 +1,5 @@
-# This is the final, production-ready ETL script.
-# It now securely loads database credentials from a .env file.
+# This is the final, production-ready ETL script for the Data Squad.
+# It has been reverted to connect to the LOCAL PostgreSQL database.
 
 import os
 import xarray as xr
@@ -11,25 +11,24 @@ from dotenv import load_dotenv
 # --- Securely Load Configuration ---
 load_dotenv()
 
-# Load secrets from environment variables.
-DB_URL = os.getenv("DATABASE_URL")
-
-# Check if the secret was loaded correctly.
-if not DB_URL:
-    raise ValueError("ERROR: DATABASE_URL must be set in your .env file")
+# We now look for the local DB_PASSWORD from the .env file.
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+if not DB_PASSWORD:
+    raise ValueError("ERROR: DB_PASSWORD must be set in your .env file for local development.")
 
 root_data_folder = 'nc files'
 
 print(f"--- 🌊 Starting Smart Sampling ETL Process for folder: '{root_data_folder}' ---")
-print(f"--- Target Database: Aiven Cloud ---")
+print(f"--- Target Database: localhost ---")
 
 # --- Database Connection ---
 try:
-    # Use the connection string directly from the environment variable.
-    engine = create_engine(DB_URL)
-    print("✅ Cloud database engine created successfully.")
+    # Reverted to the localhost connection string.
+    connection_string = f"postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/postgres"
+    engine = create_engine(connection_string)
+    print("✅ Local database engine created successfully.")
 except Exception as e:
-    print(f"❌ Failed to create cloud database engine. Error: {e}")
+    print(f"❌ Failed to create local database engine. Error: {e}")
     exit()
 
 # --- Clear the table for a fresh start ---
@@ -66,25 +65,20 @@ for file_path in nc_files_to_process:
         dataset = xr.open_dataset(file_path)
         argo_df = dataset.to_dataframe().reset_index()
 
-        # --- Smart Attribute Selection (Handles UPPERCASE and lowercase) ---
+        # --- Smart Attribute Selection ---
         column_map = {}
         potential_names = {
-            'profile_date': ['juld', 'JULD'],
-            'latitude': ['latitude', 'LATITUDE'],
-            'longitude': ['longitude', 'LONGITUDE'],
-            'pressure': ['pres_adjusted', 'PRES_ADJUSTED'],
-            'temperature': ['temp_adjusted', 'TEMP_ADJUSTED'],
-            'salinity': ['psal_adjusted', 'PSAL_ADJUSTED']
+            'profile_date': ['juld', 'JULD'], 'latitude': ['latitude', 'LATITUDE'],
+            'longitude': ['longitude', 'LONGITUDE'], 'pressure': ['pres_adjusted', 'PRES_ADJUSTED'],
+            'temperature': ['temp_adjusted', 'TEMP_ADJUSTED'], 'salinity': ['psal_adjusted', 'PSAL_ADJUSTED']
         }
-
         for clean_name, ugly_names in potential_names.items():
             for ugly_name in ugly_names:
                 if ugly_name in argo_df.columns:
                     column_map[ugly_name] = clean_name
                     break
-        
         if len(column_map) != 6:
-            raise KeyError("Could not find all required variables (date, lat, lon, pres, temp, psal).")
+            raise KeyError("Could not find all required variables.")
 
         final_df = argo_df[list(column_map.keys())].copy()
         final_df.rename(columns=column_map, inplace=True)
@@ -108,3 +102,4 @@ for file_path in nc_files_to_process:
 
 print(f"\n--- Bulk ETL Process Finished ---")
 print(f"🎉 Total new (sampled) rows loaded into the database: {total_rows_loaded}")
+

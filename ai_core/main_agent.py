@@ -1,6 +1,6 @@
-# This is the final version of the main AI script.
-# It implements a full RAG (Retrieval-Augmented Generation) pipeline and
-# securely loads secrets from a .env file.
+# This is the final version of the main AI script for the hackathon.
+# It implements a full RAG pipeline and is configured to connect to the
+# local PostgreSQL database.
 
 import os
 from dotenv import load_dotenv
@@ -13,18 +13,16 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # --- Securely Load Configuration ---
-# This line finds and loads the variables from your .env file.
 load_dotenv()
 
-# Load secrets from environment variables.
+# We now only need the local DB_PASSWORD and the API Key.
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Check if the secrets were loaded correctly.
-if not DB_PASSWORD or not GOOGLE_API_KEY:
+# Check if secrets were loaded correctly.
+if not GOOGLE_API_KEY or not DB_PASSWORD:
     raise ValueError("ERROR: GOOGLE_API_KEY and DB_PASSWORD must be set in your .env file")
 
-# Set the API key as an environment variable for LangChain to use it.
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
 print("--- 🧠 Initializing FloatChat RAG AI Core ---")
@@ -32,9 +30,12 @@ print("--- 🧠 Initializing FloatChat RAG AI Core ---")
 try:
     # --- 1. Initialize Connections ---
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
-    print("✅ Step 1: Connected to LLM (Gemini Pro).")
+    print("✅ Step 1: Connected to LLM (Gemini 2.5 Pro).")
 
+    # This logic now connects ONLY to the local database for reliability.
     db_uri = f"postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/postgres"
+    print("✅ Using local database (development mode).")
+        
     db = SQLDatabase.from_uri(db_uri)
     print("✅ Step 2: Connected to PostgreSQL database.")
 
@@ -45,14 +46,14 @@ try:
     retriever = vector_store.as_retriever()
     print("✅ Step 3: FAISS vector store loaded and retriever is ready.")
 
-    # --- 3. Create the RAG Prompt Template ---
+    # --- 3. Create the RAG Prompt Template (The MCP) ---
     template = """
     You are a PostgreSQL expert. Given a user question, you must first use the
     retrieved context to understand the database schema and rules.
     Then, create a syntactically correct PostgreSQL query to answer the question.
-    Unless the user specifies a specific number of examples, query for at most 10 results.
-    Never query for all columns from a table, you must specify the exact columns you need.
-    You must use the table name 'argo_profiles'.
+    Unless the user specifies a number of examples, query for at most 10 results.
+    Never query for all columns from a table; you must specify the exact columns you need.
+    The table name is 'argo_profiles'.
 
     Use the following format:
 
@@ -90,9 +91,9 @@ try:
         print(f"Query Result: {result}")
         return result
 
-    # --- Main Execution Block ---
+    # --- Main Execution Block (for testing) ---
     if __name__ == '__main__':
-        test_question = "Show me the temperature and salinity for floats near the equator. Just give me 5 results."
+        test_question = "Show me the temperature and salinity for floats near India. Just give me 5 results."
         
         print(f"\n--- Asking the AI a test question ---")
         print(f"Question: '{test_question}'")
