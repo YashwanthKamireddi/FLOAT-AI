@@ -1,0 +1,9 @@
+# Ignore virtual environment
+.venv/
+
+# Ignore database dumps and other large data files
+*.sql
+*.zip
+
+# Ignore DBeaver project files
+*.dbp
