@@ -7,3 +7,6 @@
 
 # Ignore DBeaver project files
 *.dbp
+
+# Ignore environment files
+.env
