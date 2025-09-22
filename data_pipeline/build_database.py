@@ -1,30 +1,38 @@
-# This is the final, production-ready ETL script for the Data Squad.
-# It recursively searches a directory for .nc files, handles different
-# attribute casings, and loads the clean data into PostgreSQL.
+# This is the final, production-ready ETL script.
+# It now securely loads database credentials from a .env file.
 
 import os
 import xarray as xr
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy import text
+from dotenv import load_dotenv
 
-# --- Configuration ---
-# IMPORTANT: Replace with your actual PostgreSQL password
-db_password = 'Srinivas'
+# --- Securely Load Configuration ---
+load_dotenv()
+
+# Load secrets from environment variables.
+DB_URL = os.getenv("DATABASE_URL")
+
+# Check if the secret was loaded correctly.
+if not DB_URL:
+    raise ValueError("ERROR: DATABASE_URL must be set in your .env file")
+
 root_data_folder = 'nc files'
 
-print(f"--- 🌊 Starting Bulk ETL Process for folder: '{root_data_folder}' ---")
+print(f"--- 🌊 Starting Smart Sampling ETL Process for folder: '{root_data_folder}' ---")
+print(f"--- Target Database: Aiven Cloud ---")
 
 # --- Database Connection ---
 try:
-    connection_string = f"postgresql://postgres:{db_password}@localhost:5432/postgres"
-    engine = create_engine(connection_string)
-    print("✅ Database engine created successfully.")
+    # Use the connection string directly from the environment variable.
+    engine = create_engine(DB_URL)
+    print("✅ Cloud database engine created successfully.")
 except Exception as e:
-    print(f"❌ Failed to create database engine. Error: {e}")
+    print(f"❌ Failed to create cloud database engine. Error: {e}")
     exit()
 
-# --- Optional: Clear the table for a fresh start ---
+# --- Clear the table for a fresh start ---
 print("Clearing the 'argo_profiles' table for a fresh load...")
 try:
     with engine.connect() as connection:
@@ -32,7 +40,7 @@ try:
         connection.commit()
     print("✅ 'argo_profiles' table has been cleared.")
 except Exception as e:
-    print(f"⚠️ Could not clear table (it might not exist yet, which is okay). Error: {e}")
+    print(f"⚠️ Could not clear table. Error: {e}")
 
 
 # --- Recursively find all profile files ---
@@ -81,20 +89,22 @@ for file_path in nc_files_to_process:
         final_df = argo_df[list(column_map.keys())].copy()
         final_df.rename(columns=column_map, inplace=True)
         
+        # --- Smart Sampling Step ---
+        sampled_df = final_df.iloc[::2]
+        
         # Add float_id from filename
         float_id = int(filename.split('_')[0].replace('D', '').replace('R', ''))
-        final_df['float_id'] = float_id
+        sampled_df.loc[:, 'float_id'] = float_id
         
         # LOAD
-        final_df.to_sql('argo_profiles', engine, if_exists='append', index=False)
+        sampled_df.to_sql('argo_profiles', engine, if_exists='append', index=False)
         
-        rows_loaded = len(final_df)
+        rows_loaded = len(sampled_df)
         total_rows_loaded += rows_loaded
-        print(f" ✅ Success: Loaded {rows_loaded} rows.")
+        print(f" ✅ Success: Loaded {rows_loaded} (sampled) rows.")
 
     except Exception as e:
         print(f" ⚠️ SKIPPING FILE: Could not process {filename}. Error: {e}")
 
 print(f"\n--- Bulk ETL Process Finished ---")
-print(f"🎉 Total new rows loaded into the database: {total_rows_loaded}")
-
+print(f"🎉 Total new (sampled) rows loaded into the database: {total_rows_loaded}")
