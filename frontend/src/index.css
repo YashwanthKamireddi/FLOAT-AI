@@ -1,0 +1,206 @@
+/* Import modern fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Import Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Modern UI components */
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary-foreground)));
+    border-radius: 4px;
+    border: 1px solid hsl(var(--border));
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)));
+  }
+
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .ocean-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .data-card {
+    background: linear-gradient(145deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  }
+
+  .modern-button {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    transition: all 0.3s ease;
+    transform: translateY(0);
+  }
+
+  .modern-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  }
+
+  .futuristic-border {
+    position: relative;
+    border: 2px solid transparent;
+    background: linear-gradient(145deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)) padding-box,
+                linear-gradient(145deg, hsl(var(--primary)), hsl(var(--accent))) border-box;
+    border-radius: 12px;
+  }
+}
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Vibrant ocean-friendly color palette */
+    --background: 200 40% 96%;
+    --foreground: 220 20% 15%;
+
+    --card: 200 30% 98%;
+    --card-foreground: 220 20% 20%;
+
+    --popover: 200 30% 98%;
+    --popover-foreground: 220 20% 20%;
+
+    /* Bright ocean blue as primary */
+    --primary: 200 85% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 200 85% 45%;
+
+    /* Warm secondary */
+    --secondary: 30 60% 92%;
+    --secondary-foreground: 220 20% 25%;
+
+    /* Muted backgrounds */
+    --muted: 200 20% 90%;
+    --muted-foreground: 220 15% 45%;
+
+    /* Bright coral accent color */
+    --accent: 15 85% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Borders */
+    --border: 200 20% 85%;
+    --input: 200 20% 88%;
+
+    /* Rings */
+    --ring: 200 85% 55%;
+
+    /* Destructive */
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Modern radius */
+    --radius: 12px;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+    /* Vibrant friendly gradients */
+    --gradient-ocean: linear-gradient(135deg, hsl(200 85% 55%), hsl(15 85% 65%));
+    --gradient-depth: linear-gradient(180deg, hsl(200 85% 55%), hsl(180 85% 55%));
+    --gradient-surface: linear-gradient(135deg, hsl(200 25% 95%), hsl(30 30% 95%));
+
+    /* Bright friendly shadows */
+    --shadow-ocean: 0 10px 30px -10px hsl(200 85% 55% / 0.3);
+    --shadow-depth: 0 20px 40px -10px hsl(15 85% 65% / 0.2);
+
+    /* Smooth transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Sidebar ocean theme */
+    --sidebar-background: 215 25% 95%;
+    --sidebar-foreground: 215 25% 27%;
+    --sidebar-primary: 210 100% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 200 25% 90%;
+    --sidebar-accent-foreground: 215 25% 27%;
+    --sidebar-border: 200 20% 85%;
+    --sidebar-ring: 210 100% 45%;
+  }
+
+  .dark {
+    --background: 220 30% 15%;
+    --foreground: 200 40% 95%;
+
+    --card: 220 25% 18%;
+    --card-foreground: 200 40% 95%;
+
+    --popover: 220 25% 18%;
+    --popover-foreground: 200 40% 95%;
+
+    --primary: 200 85% 60%;
+    --primary-foreground: 220 30% 10%;
+
+    --secondary: 220 20% 25%;
+    --secondary-foreground: 200 30% 85%;
+
+    --muted: 220 20% 22%;
+    --muted-foreground: 200 15% 70%;
+
+    --accent: 15 85% 65%;
+    --accent-foreground: 220 30% 10%;
+
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 200 40% 95%;
+
+    --border: 220 20% 30%;
+    --input: 220 20% 25%;
+    --ring: 200 85% 60%;
+    --sidebar-background: 220 25% 20%;
+    --sidebar-foreground: 200 30% 85%;
+    --sidebar-primary: 200 85% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 25%;
+    --sidebar-accent-foreground: 200 30% 85%;
+    --sidebar-border: 220 20% 30%;
+    --sidebar-ring: 200 85% 60%;
+  }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

@@ -1,5 +1,6 @@
 # This is the final, production-ready version of the AI agent.
-# It is now refactored to be easily callable from the Streamlit frontend.
+# It implements a full RAG pipeline and is configured to connect to the
+# local PostgreSQL database.
 
 import os
 from dotenv import load_dotenv
@@ -18,6 +19,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # --- Global Initialization (to avoid reloading models on every call) ---
+# These variables will hold our initialized AI components.
 llm = None
 db = None
 rag_chain = None
@@ -25,27 +27,30 @@ rag_chain = None
 def initialize_ai_core():
     """
     Initializes all the core AI components (LLM, DB, Vector Store).
-    This function is called once to prevent expensive reloads.
+    This function is called only once to prevent expensive reloads.
     """
     global llm, db, rag_chain
 
-    if llm is not None:
-        return # Already initialized
+    # If already initialized, do nothing.
+    if rag_chain is not None:
+        return
 
     print("--- 🧠 Initializing FloatChat RAG AI Core (first run)... ---")
 
     os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
     
+    # 1. Initialize Connections
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0)
     
     db_uri = f"postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/postgres"
     db = SQLDatabase.from_uri(db_uri)
 
+    # 2. Load the REAL Vector Store from the folder we created.
     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vector_store = FAISS.load_local("ai_core/faiss_index", embedding_model, allow_dangerous_deserialization=True)
     retriever = vector_store.as_retriever()
 
-    # --- CRITICAL FIX IS HERE ---
+    # 3. Create the RAG Prompt Template (The MCP)
     template = """
     You are a PostgreSQL expert. Given a user question, first use the
     retrieved context to understand the database schema and rules.
@@ -72,6 +77,7 @@ def initialize_ai_core():
     """
     prompt = PromptTemplate.from_template(template)
 
+    # 4. Build the RAG Chain
     rag_chain = (
         {"context": retriever, "question": RunnablePassthrough()}
         | prompt
@@ -88,10 +94,13 @@ def run_ai_pipeline(question: str):
     and returns a structured dictionary with the results.
     """
     try:
+        # Ensure the AI core is initialized before running.
         initialize_ai_core()
 
         print("\n--- Generating SQL Query using RAG ---")
         generated_sql = rag_chain.invoke(question)
+        # Clean up the generated SQL to remove markdown formatting
+        generated_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
         print(f"Generated SQL: {generated_sql}")
 
         print("\n--- Executing SQL Query on the database ---")
@@ -127,3 +136,4 @@ if __name__ == '__main__':
     print("\n--- ✅ Final Response Payload ---")
     print(response)
     print("\n--- Script Finished ---")
+
