@@ -1,2 +1,21 @@
+# Python virtual environment
+.venv/
 venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Local secrets file
 .env
+
+# Raw data and large files
+nc files/
+*.sql
+*.zip
+
+# Vector store index
+ai_core/faiss_index/
+
+# Frontend dependencies
+frontend/node_modules/
