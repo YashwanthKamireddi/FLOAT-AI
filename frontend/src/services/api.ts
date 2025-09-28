@@ -1,6 +1,28 @@
 // This file contains the function for communicating with our Python AI backend.
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api/ask";
+const resolveApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl;
+  }
+
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    const normalizedProtocol = protocol === "file:" ? "http:" : protocol;
+
+    const sanitizedHost = hostname === "::1" ? "127.0.0.1" : hostname;
+
+    if (sanitizedHost === "localhost" || sanitizedHost === "127.0.0.1") {
+      return "http://127.0.0.1:8000/api/ask";
+    }
+
+    return `${normalizedProtocol}//${sanitizedHost}:8000/api/ask`;
+  }
+
+  return "http://127.0.0.1:8000/api/ask";
+};
+
+const API_URL = resolveApiUrl();
 
 // This interface defines the "API Contract".
 export interface AIResponse {
