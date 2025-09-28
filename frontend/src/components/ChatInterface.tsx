@@ -11,8 +11,6 @@ import { Send, Bot, User, Loader2 } from 'lucide-react';
 // --- CORE INTEGRATION ---
 // 1. Import the real API function and its response type.
 import { askAI, AIResponse } from '@/services/api';
-// We also import our utility for parsing the AI's data response.
-import { parseSqlResult } from '@/lib/utils';
 
 // --- Define the shape of our chat messages ---
 interface Message {
@@ -31,7 +29,16 @@ const ChatInterface = ({ onDataReceived }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: "Hello! I'm your ARGO data assistant. How can I help you explore oceanographic data today?",
+      content: `🌊 **Welcome to FloatChat!**
+
+I am an AI research assistant powered by Google Gemini, designed to help you explore the global ARGO ocean data. You can ask me questions in plain English.
+
+**Here's how to use me:**
+* **Ask for Locations:** "Show me 10 floats in the Arabian Sea."
+* **Ask for Profiles:** "Plot the temperature profile for float 2902324."
+* **Ask for Specifics:** "What is the average salinity of the 5 warmest floats?"
+
+What oceanographic research question can I help you explore today?`,
       sender: 'assistant',
       timestamp: new Date(),
     }
@@ -77,16 +84,15 @@ const ChatInterface = ({ onDataReceived }: ChatInterfaceProps) => {
         onDataReceived([], "Error executing query.");
       } else {
         // 3. Handle the two types of responses from the AI Router
-        if (response.sql_query) { // This was a data query
-          const parsedData = parseSqlResult(response.sql_query, response.result_data);
-          
-          if (parsedData.length > 0) {
-            assistantContent = `I found ${parsedData.length} records. The exploration panel has been updated.`;
+        if (Array.isArray(response.result_data)) { // This was a data query
+          const data = response.result_data;
+          if (data && data.length > 0) {
+            assistantContent = `I found ${data.length} records. The exploration panel has been updated.`;
             // 4. Send the real, parsed data up to the parent component.
-            onDataReceived(parsedData, response.sql_query);
+            onDataReceived(data, response.sql_query || "");
           } else {
             assistantContent = "I ran the query, but it returned no results. Please try a different question.";
-            onDataReceived([], response.sql_query);
+            onDataReceived([], response.sql_query || "");
           }
         } else { // This was a conversational response
           assistantContent = (response.result_data as string) || "I'm not sure how to answer that.";
@@ -104,6 +110,7 @@ const ChatInterface = ({ onDataReceived }: ChatInterfaceProps) => {
 
     } catch (error) {
       console.error('Chat error:', error);
+      // Handle UI error message if the fetch itself fails
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: 'Failed to connect to the AI server. Please make sure it is running.',
@@ -123,12 +130,12 @@ const ChatInterface = ({ onDataReceived }: ChatInterfaceProps) => {
     }
   };
 
-  // The rest of your beautiful UI code remains the same.
+  // The rest of your friend's beautiful UI code remains the same.
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b bg-gradient-surface">
+      <div className="p-4 border-b">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gradient-ocean rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -181,7 +188,7 @@ const ChatInterface = ({ onDataReceived }: ChatInterfaceProps) => {
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t bg-gradient-surface/30">
+      <div className="p-4 border-t">
         <div className="flex space-x-2">
           <Input
             value={input}
