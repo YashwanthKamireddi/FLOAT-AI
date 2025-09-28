@@ -302,7 +302,7 @@ function App() {
         <div className="pointer-events-none absolute -bottom-64 right-[-20%] h-[520px] w-[520px] rounded-full gradient-ring blur-3xl opacity-30" />
 
         <main className="relative z-10 flex min-h-screen flex-col">
-          <header className="mx-auto w-full max-w-7xl px-6 pt-14 pb-10 lg:px-10">
+          <header className="w-full px-6 pt-14 pb-10 lg:px-10">
             <div className="flex flex-col gap-[32px] lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-[24px]">
                 <div className="inline-flex items-center gap-4 rounded-full bg-white/70 px-6 py-2 shadow-sm backdrop-blur-md dark:bg-white/10">
@@ -328,7 +328,7 @@ function App() {
                   className="inline-flex items-center gap-2 rounded-xl border-white/40 bg-white/85 px-3 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-slate-200"
                 >
                   <Command className="h-3 w-3" />
-                  Command ⌘K
+                  Open Palette ⌘K
                 </Button>
               </div>
             </div>
@@ -355,10 +355,10 @@ function App() {
             </div>
           </header>
 
-          <section className="mx-auto flex w-full max-w-[1350px] flex-1 flex-col px-6 pb-16 lg:px-10 min-h-0">
+          <section className="flex w-full flex-1 flex-col px-6 pb-16 lg:px-10 min-h-0">
             <div className="grid flex-1 min-h-0 gap-8 pb-6 lg:grid-cols-[500px,minmax(0,1fr)] xl:grid-cols-[540px,minmax(0,1fr)] 2xl:grid-cols-[560px,minmax(0,1fr)]">
               <div className="mission-panel flex h-full min-h-0 flex-col p-6">
-                <div className="pointer-events-none absolute inset-0 rounded-[32px] border border-white/10 dark:border-white/5" />
+                <div className="pointer-events-none absolute inset-0 rounded-[32px] border-y border-white/10 dark:border-white/5" />
                 <div className="relative z-10 flex h-full flex-col">
                   <ChatInterface
                     onDataReceived={handleDataReceived}

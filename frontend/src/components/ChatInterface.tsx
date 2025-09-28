@@ -85,19 +85,31 @@ Ask a question to surface floats, profiles, or trends when you're ready.`,
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [isViewportReady, setIsViewportReady] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const summarySignatureRef = useRef<string | null>(null);
   const messageCountRef = useRef(0);
   const composerRef = useRef<HTMLFormElement>(null);
   const [composerHeight, setComposerHeight] = useState(0);
+  const bottomSafePadding = composerHeight + 48;
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showNewMessagesBadge, setShowNewMessagesBadge] = useState(false);
+  const ensureChatPadding = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const paddingValue = `${bottomSafePadding}px`;
+    viewport.style.setProperty('--chat-bottom-padding', paddingValue);
+    viewport.style.setProperty('padding-bottom', paddingValue, 'important');
+  }, [bottomSafePadding]);
+
   useEffect(() => {
     if (!scrollAreaRef.current) return;
     const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null;
     if (!viewport) return;
 
     viewportRef.current = viewport;
+    setIsViewportReady(true);
 
     const handleScroll = () => {
       if (!viewportRef.current) return;
@@ -116,13 +128,35 @@ Ask a question to surface floats, profiles, or trends when you're ready.`,
 
     return () => {
       viewport.removeEventListener('scroll', handleScroll);
+      viewportRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isViewportReady) return;
+    ensureChatPadding();
+  }, [isViewportReady, ensureChatPadding]);
+
+  useEffect(() => {
+    if (!isViewportReady) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const observer = new MutationObserver(() => {
+      ensureChatPadding();
+    });
+
+    observer.observe(viewport, { childList: true, subtree: true, attributes: true });
+
+    return () => observer.disconnect();
+  }, [isViewportReady, ensureChatPadding]);
 
   const scrollToBottom = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
-    viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    });
   }, []);
 
   useEffect(() => {
@@ -289,20 +323,12 @@ Let me know if you’d like to dive into any detail further or filter this view.
 
       <ScrollArea ref={scrollAreaRef} className="data-scroll relative flex-1 min-h-0 max-h-[calc(100vh-260px)] rounded-[24px] border border-white/20 bg-white/55 p-5 shadow-[0_34px_68px_-42px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
         <div
-          className="flex flex-col gap-6 pr-6 sm:pr-8"
-          style={{ paddingBottom: `${composerHeight + 24}px` }}
+          className="relative flex flex-col gap-6 pr-6 sm:pr-8"
+          style={{ paddingBottom: `${bottomSafePadding}px` }}
         >
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn('flex w-full', message.sender === 'user' ? 'justify-end' : 'justify-start')}
-            >
-              <div
-                className={cn(
-                  'flex w-full items-start gap-4',
-                  message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
-                )}
-              >
+            <div key={message.id} className="flex w-full justify-start">
+              <div className="flex w-full max-w-none items-start gap-4">
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className={message.sender === 'user' ? 'bg-primary text-primary-foreground shadow-[0_10px_25px_-15px_rgba(14,165,233,0.7)]' : 'bg-secondary/70 text-slate-700 dark:bg-white/[0.08] dark:text-white'}>
                     {message.sender === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
@@ -342,14 +368,17 @@ Let me know if you’d like to dive into any detail further or filter this view.
           )}
 
           {showNewMessagesBadge && (
-            <div className="sticky bottom-0 left-0 right-0 flex justify-center pt-2">
+            <div
+              className="pointer-events-none absolute left-0 right-0 flex justify-center"
+              style={{ bottom: `${composerHeight + 32}px` }}
+            >
               <button
                 type="button"
                 onClick={() => {
                   scrollToBottom();
                   setShowNewMessagesBadge(false);
                 }}
-                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 dark:bg-white/85 dark:text-slate-900"
+                className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 dark:bg-white/85 dark:text-slate-900"
               >
                 New message
                 <ChevronRight className="h-3 w-3 rotate-90" />
