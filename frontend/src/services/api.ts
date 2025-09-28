@@ -1,6 +1,6 @@
 // This file contains the function for communicating with our Python AI backend.
 
-const API_URL = "http://127.0.0.1:8000/api/ask";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api/ask";
 
 // This interface defines the "API Contract".
 export interface AIResponse {
@@ -30,7 +30,8 @@ export const askAI = async (question: string): Promise<AIResponse> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    const payload = await response.json();
+    return payload as AIResponse;
 
   } catch (error) {
     console.error("Failed to fetch from AI backend:", error);
@@ -42,4 +43,3 @@ export const askAI = async (question: string): Promise<AIResponse> => {
     };
   }
 };
-

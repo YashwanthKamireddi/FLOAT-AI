@@ -13,9 +13,17 @@ def main():
     # --- Securely Load Configuration ---
     load_dotenv()
 
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
-    if not DB_PASSWORD:
-        raise ValueError("ERROR: DB_PASSWORD must be set in your .env file for local development.")
+    database_url = os.getenv("DATABASE_URL")
+    db_password = os.getenv("DB_PASSWORD")
+    db_user = os.getenv("DB_USER", "postgres")
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "float")
+
+    if not database_url and not db_password:
+        raise ValueError(
+            "ERROR: Provide DATABASE_URL or DB_PASSWORD/DB_USER/DB_HOST/DB_PORT/DB_NAME in your .env file."
+        )
 
     root_data_folder = 'nc files'
 
@@ -24,7 +32,9 @@ def main():
 
     # --- Database Connection ---
     try:
-        connection_string = f"postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/postgres"
+        connection_string = database_url or (
+            f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+        )
         engine = create_engine(connection_string)
         print("✅ Local database engine created successfully.")
     except Exception as e:
@@ -60,7 +70,7 @@ def main():
     for file_path in nc_files_to_process:
         filename = os.path.basename(file_path)
         print(f"\n--- Processing file: {filename} ---", end="")
-        
+
         try:
             dataset = xr.open_dataset(file_path)
             argo_df = dataset.to_dataframe().reset_index()
@@ -81,13 +91,13 @@ def main():
 
             final_df = argo_df[list(column_map.keys())].copy()
             final_df.rename(columns=column_map, inplace=True)
-            
+
             float_id = int(filename.split('_')[0].replace('D', '').replace('R', ''))
             final_df['float_id'] = float_id
-            
+
             # LOAD
             final_df.to_sql('argo_profiles', engine, if_exists='append', index=False)
-            
+
             rows_loaded = len(final_df)
             total_rows_loaded += rows_loaded
             print(f" ✅ Success: Loaded {rows_loaded} rows.")
@@ -102,4 +112,3 @@ def main():
 # This is the standard way to make a Python script runnable.
 if __name__ == "__main__":
     main()
-

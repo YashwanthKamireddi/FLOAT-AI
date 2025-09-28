@@ -1,30 +1,25 @@
-#Data Squad & Core Libraries
+# Data Squad & Core Libraries
 pandas
 xarray
-netcdf4
-sqlalchemy
+netCDF4
+SQLAlchemy
 psycopg2-binary
 
-#AI Squad Libraries
+# AI Squad Libraries
 langchain
 langchain-community
 langchain-google-genai
 sentence-transformers
+google-generativeai
+faiss-cpu
 
-#Frontend Squad Libraries
-streamlit
-plotly
-
+# Backend / API
 fastapi
 uvicorn[standard]
 python-dotenv
-SQLAlchemy
-psycopg2-binary
-langchain
-langchain-community
-langchain-google-genai
-google-generativeai
-faiss-cpu
-netCDF4
-xarray
 pydantic
+certifi
+
+# Frontend Squad Libraries
+streamlit
+plotly

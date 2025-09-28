@@ -1,13 +1,19 @@
 # This script creates a FastAPI server to expose our AI pipeline to the web.
 # This is the "engine" that our frontend will talk to.
 
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
-from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import uvicorn
 
 # We import the brain of our application from the ai_core module
 from ai_core.main_agent import run_ai_pipeline
+
+# Load backend environment variables once at startup.
+load_dotenv()
 
 # Create the FastAPI app instance
 app = FastAPI(
@@ -19,12 +25,16 @@ app = FastAPI(
 # --- CORS Middleware ---
 # This is a critical security step. It allows your frontend application (running on a different port)
 # to make requests to this backend server.
+cors_origins_env = os.getenv("BACKEND_CORS_ORIGINS", "*")
+parsed_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+allow_all_origins = "*" in parsed_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for development
+    allow_origins=["*"] if allow_all_origins else parsed_origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Pydantic Models for a clear API contract ---
@@ -45,5 +55,6 @@ async def ask_question(request: QueryRequest):
 # --- Run the server ---
 # This block allows you to run the server directly for testing.
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
+    api_host = os.getenv("API_HOST", "0.0.0.0")
+    api_port = int(os.getenv("API_PORT", "8000"))
+    uvicorn.run(app, host=api_host, port=api_port)

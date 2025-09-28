@@ -6,7 +6,6 @@ import './index.css'
 // --- Import the ThemeProvider ---
 // This is the component that will manage our light/dark mode.
 import { ThemeProvider } from "@/components/ThemeProvider"
-import { ThemeToggle } from "@/components/ThemeToggle"
 // This is the root of our entire React application.
 // It finds the <div id="root"> in index.html and renders our app inside it.
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -18,4 +17,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ThemeProvider>
   </React.StrictMode>,
 )
-

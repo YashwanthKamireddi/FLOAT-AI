@@ -132,20 +132,20 @@ What oceanographic research question can I help you explore today?`,
 
   // The rest of your friend's beautiful UI code remains the same.
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-4 border-b">
+    <div className="flex h-full flex-col">
+      <div className="border-b border-white/40 px-5 py-4 backdrop-blur-sm bg-gradient-surface dark:border-white/10">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-            <Bot className="w-5 h-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-ocean shadow-lg shadow-sky-500/30">
+            <Bot className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold">ARGO Assistant</h3>
-            <p className="text-xs text-muted-foreground">Ocean Data AI</p>
+            <h3 className="text-base font-semibold leading-tight">ARGO Assistant</h3>
+            <p className="text-xs text-muted-foreground">Conversational access to the global ocean</p>
           </div>
         </div>
       </div>
 
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 space-y-4 bg-white/35 p-5 backdrop-blur-sm dark:bg-white/5">
         <div className="space-y-4">
           {messages.map((message) => (
             <div
@@ -161,8 +161,8 @@ What oceanographic research question can I help you explore today?`,
                 
                 <div className={`rounded-lg p-3 ${
                   message.sender === 'user' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-secondary'
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-sky-500/25' 
+                    : 'bg-white/80 shadow-md text-slate-700 dark:bg-white/[0.08] dark:text-slate-100'
                 }`}>
                   <p className="text-sm">{message.content}</p>
                 </div>
@@ -176,7 +176,7 @@ What oceanographic research question can I help you explore today?`,
                  <Avatar className="w-8 h-8">
                    <AvatarFallback className="bg-secondary"><Bot className="w-4 h-4" /></AvatarFallback>
                  </Avatar>
-                 <div className="bg-secondary rounded-lg p-3">
+                 <div className="rounded-lg bg-white/75 p-3 shadow-md dark:bg-white/[0.08]">
                    <div className="flex items-center space-x-2">
                      <Loader2 className="w-4 h-4 animate-spin" />
                      <p className="text-sm">Processing your query...</p>
@@ -188,19 +188,20 @@ What oceanographic research question can I help you explore today?`,
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t">
-        <div className="flex space-x-2">
+      <div className="border-t border-white/30 bg-gradient-surface/40 px-5 py-4 backdrop-blur-sm dark:border-white/10">
+        <div className="flex gap-3">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask about ARGO data..."
-            className="flex-1"
+            className="flex-1 border border-white/40 bg-white/70 text-sm shadow-sm transition focus-visible:ring-primary/60 dark:border-white/10 dark:bg-white/5"
             disabled={isLoading}
           />
           <Button 
             onClick={handleSend} 
             disabled={!input.trim() || isLoading}
+            className="shadow-lg shadow-sky-500/30 transition hover:-translate-y-0.5"
           >
             <Send className="w-4 h-4" />
           </Button>
