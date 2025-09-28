@@ -2,12 +2,21 @@
 
 Production-ready instructions for running the FloatChat stack locally.
 
+## What does FloatChat do?
+
+FloatChat is a mission console for ARGO ocean intelligence:
+
+- **Chat-to-Insight** – Scientists type plain-language questions; the backend orchestrates Gemini + SQL generation to surface float records, profiles, statistics, and maps.
+- **Guided Analytics** – The UI narrates findings, summarizes trends, and pairs every chart with short, readable takeaways so teams can brief stakeholders quickly.
+- **Transparent Data Provenance** – Every response links to the SQL used, making it easy to audit queries in pgAdmin or DBeaver, tweak them, and rerun variants.
+- **Responsive Control Deck** – A focused-calm layout keeps the chat, charts, and tables aligned on an 8-point grid, even when handling dense telemetry.
+
 ## Prerequisites
 
 - **Python 3.11+** (project tested with Python 3.13)
 - **Node.js 18+** (for the Vite + React frontend)
 - **PostgreSQL 14+** accessible at `localhost:5432`
-- Recommended: [pgAdmin](https://www.pgadmin.org/) for managing the `float` database
+- Recommended: [pgAdmin](https://www.pgadmin.org/) for managing the `postgres` database
 
 ## 1. Configure environment variables
 
@@ -17,14 +26,14 @@ Production-ready instructions for running the FloatChat stack locally.
    Copy-Item frontend/.env.example frontend/.env
    ```
 2. Set `GOOGLE_API_KEY` to your Gemini API key.
-3. Either set `DATABASE_URL` **or** supply the granular `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` values. The defaults match your pgAdmin server named **Float** (`postgres` / `2021`).
+3. Either set `DATABASE_URL` **or** supply the granular `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` values. The defaults match your pgAdmin server named **postgres** (`postgres` / `Password You created when installing Postgres`).
 4. Optionally restrict `BACKEND_CORS_ORIGINS` to the frontend origin you deploy.
 
 > ⚠️ Never check the populated `.env` files into source control.
 
 ## 2. Prepare the database
 
-1. Create a PostgreSQL database called `float` (or adjust `DB_NAME` accordingly).
+1. Create (or reuse) a PostgreSQL database called `postgres` (or adjust `DB_NAME` accordingly).
 2. Ensure the `argo_profiles` table exists with the schema expected by the ETL pipeline.
 3. (Optional) Run the ETL to load NetCDF data:
    ```powershell
