@@ -1,235 +1,114 @@
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, AreaChart, Area } from 'recharts';
-import { TrendingUp, Droplets, Thermometer, Waves, Download } from 'lucide-react';
+// This component is responsible for displaying all the visualizations
+// based on the data received from the AI.
 
-// Mock data for visualizations
-const temperatureData = [
-  { depth: 0, temp: 28.5, salinity: 34.2 },
-  { depth: 50, temp: 26.8, salinity: 34.8 },
-  { depth: 100, temp: 22.4, salinity: 35.1 },
-  { depth: 200, temp: 18.2, salinity: 35.4 },
-  { depth: 500, temp: 12.8, salinity: 35.0 },
-  { depth: 1000, temp: 8.5, salinity: 34.6 },
-  { depth: 1500, temp: 5.2, salinity: 34.4 },
-  { depth: 2000, temp: 3.8, salinity: 34.7 }
-];
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CodeBlock, atomOneLight } from 'react-code-blocks';
+import Plot from 'react-plotly.js';
+import { useMemo } from "react";
 
-const timeSeriesData = [
-  { date: '2024-01-15', temp: 24.2, salinity: 35.1 },
-  { date: '2024-01-16', temp: 24.8, salinity: 35.0 },
-  { date: '2024-01-17', temp: 25.1, salinity: 34.9 },
-  { date: '2024-01-18', temp: 24.6, salinity: 35.2 },
-  { date: '2024-01-19', temp: 25.3, salinity: 35.1 },
-  { date: '2024-01-20', temp: 25.0, salinity: 35.0 },
-  { date: '2024-01-21', temp: 25.4, salinity: 34.8 }
-];
+interface DataVisualizationProps {
+  data: Record<string, any>[];
+  sqlQuery: string;
+}
 
-const DataVisualization = () => {
+const DataVisualization = ({ data, sqlQuery }: DataVisualizationProps) => {
+
+  // useMemo is a professional React hook that prevents unnecessary recalculations.
+  // It will only re-check for these columns when the 'data' prop actually changes.
+  const hasLocationData = useMemo(() => data.length > 0 && 'latitude' in data[0] && 'longitude' in data[0], [data]);
+  const hasTempProfileData = useMemo(() => data.length > 0 && 'temperature' in data[0] && 'pressure' in data[0], [data]);
+  const hasSalProfileData = useMemo(() => data.length > 0 && 'salinity' in data[0] && 'pressure' in data[0], [data]);
+  
+  // This is the view when the app first loads or when a query returns no data.
+  if (data.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center p-8">
+        <div className="text-center">
+          <h3 className="text-xl font-semibold mb-2">Explore the Ocean</h3>
+          <p className="text-muted-foreground">
+            Ask a question in the chat panel to see your data visualized here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-gradient-surface">
-        <div className="flex items-center space-x-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            Ocean Profiles
-          </h3>
-          <Badge variant="secondary">Float A001</Badge>
-        </div>
-        <Button variant="outline" size="sm">
-          <Download className="w-4 h-4 mr-1" />
-          Export
-        </Button>
-      </div>
+    <div className="h-full flex flex-col p-4">
+      <h2 className="text-2xl font-bold mb-4">Explore the Results</h2>
+      <Tabs defaultValue="analysis" className="flex-1 flex flex-col">
+        <TabsList>
+          <TabsTrigger value="analysis">📊 Analysis</TabsTrigger>
+          <TabsTrigger value="map" disabled={!hasLocationData}>🗺️ Ocean Map</TabsTrigger>
+          <TabsTrigger value="profiles" disabled={!hasTempProfileData && !hasSalProfileData}>📈 Profiles</TabsTrigger>
+          <TabsTrigger value="sql">🔍 SQL Query</TabsTrigger>
+        </TabsList>
 
-      {/* Visualization Tabs */}
-      <div className="flex-1 p-4">
-        <Tabs defaultValue="profiles" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
-            <TabsTrigger value="profiles">Depth Profiles</TabsTrigger>
-            <TabsTrigger value="timeseries">Time Series</TabsTrigger>
-            <TabsTrigger value="scatter">T-S Diagram</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="profiles" className="flex-1 mt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-              {/* Temperature Profile */}
-              <Card className="p-4 bg-gradient-surface/50">
-                <div className="flex items-center gap-2 mb-4">
-                  <Thermometer className="w-4 h-4 text-red-500" />
-                  <h4 className="font-semibold">Temperature Profile</h4>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={temperatureData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                    <XAxis 
-                      dataKey="temp" 
-                      label={{ value: 'Temperature (°C)', position: 'insideBottom', offset: -10 }}
-                    />
-                    <YAxis 
-                      dataKey="depth" 
-                      reversed 
-                      label={{ value: 'Depth (m)', angle: -90, position: 'insideLeft' }}
-                    />
-                    <Tooltip 
-                      labelStyle={{ color: 'hsl(var(--foreground))' }}
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="temp" 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Card>
-
-              {/* Salinity Profile */}
-              <Card className="p-4 bg-gradient-surface/50">
-                <div className="flex items-center gap-2 mb-4">
-                  <Droplets className="w-4 h-4 text-blue-500" />
-                  <h4 className="font-semibold">Salinity Profile</h4>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={temperatureData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                    <XAxis 
-                      dataKey="salinity" 
-                      label={{ value: 'Salinity (PSU)', position: 'insideBottom', offset: -10 }}
-                    />
-                    <YAxis 
-                      dataKey="depth" 
-                      reversed 
-                      label={{ value: 'Depth (m)', angle: -90, position: 'insideLeft' }}
-                    />
-                    <Tooltip 
-                      labelStyle={{ color: 'hsl(var(--foreground))' }}
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="salinity" 
-                      stroke="hsl(var(--accent))" 
-                      strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--accent))', strokeWidth: 2, r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Card>
+        <TabsContent value="analysis" className="flex-1 overflow-y-auto mt-4 text-base">
+            <h3 className="font-semibold mb-2 text-lg">Raw Data ({data.length} records)</h3>
+            <div className="max-h-[400px] overflow-auto border rounded-md">
+                <table className="w-full text-sm text-left">
+                    <thead className="sticky top-0 bg-muted">
+                        <tr>
+                            {Object.keys(data[0]).map(key => <th key={key} className="p-2 font-semibold">{key}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.map((row, i) => (
+                            <tr key={i} className="border-t">
+                                {Object.values(row).map((val, j) => <td key={j} className="p-2">{String(val)}</td>)}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
-          </TabsContent>
+        </TabsContent>
 
-          <TabsContent value="timeseries" className="flex-1 mt-0">
-            <Card className="p-4 h-full bg-gradient-surface/50">
-              <div className="flex items-center gap-2 mb-4">
-                <Waves className="w-4 h-4 text-primary" />
-                <h4 className="font-semibold">Surface Parameters Over Time</h4>
-              </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip 
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="temp" 
-                    stackId="1" 
-                    stroke="hsl(var(--primary))" 
-                    fill="hsl(var(--primary) / 0.3)"
-                    name="Temperature (°C)"
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="salinity" 
-                    stackId="2" 
-                    stroke="hsl(var(--accent))" 
-                    fill="hsl(var(--accent) / 0.3)"
-                    name="Salinity (PSU)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Card>
-          </TabsContent>
+        <TabsContent value="map" className="flex-1 mt-4">
+          <Plot
+            data={[{
+              type: 'scattermapbox',
+              lat: data.map(r => r.latitude),
+              lon: data.map(r => r.longitude),
+              text: data.map(r => `Float: ${r.float_id}`),
+              mode: 'markers',
+              marker: { color: '#1f7ae0', size: 10 },
+            }]}
+            layout={{
+              mapbox: { style: 'open-street-map', zoom: 1, center: { lat: data[0].latitude, lon: data[0].longitude } },
+              margin: { r: 0, t: 0, b: 0, l: 0 },
+            }}
+            style={{ width: '100%', height: '100%' }}
+            useResizeHandler={true}
+          />
+        </TabsContent>
+        
+        <TabsContent value="profiles" className="flex-1 overflow-y-auto mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+           {hasTempProfileData && 
+            <Plot
+              data={[{ x: data.map(r => r.temperature), y: data.map(r => r.pressure), mode: 'lines+markers' }]}
+              layout={{ title: 'Temperature vs. Depth', yaxis: { autorange: 'reversed', title: 'Pressure (dbar)' }, xaxis: { title: 'Temperature (°C)' } }}
+              style={{ width: '100%', height: '400px' }}
+              useResizeHandler={true}
+            />
+           }
+           {hasSalProfileData &&
+            <Plot
+              data={[{ x: data.map(r => r.salinity), y: data.map(r => r.pressure), mode: 'lines+markers' }]}
+              layout={{ title: 'Salinity vs. Depth', yaxis: { autorange: 'reversed', title: 'Pressure (dbar)' }, xaxis: { title: 'Salinity (PSU)' } }}
+              style={{ width: '100%', height: '400px' }}
+              useResizeHandler={true}
+            />
+           }
+        </TabsContent>
 
-          <TabsContent value="scatter" className="flex-1 mt-0">
-            <Card className="p-4 h-full bg-gradient-surface/50">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-4 h-4 text-primary" />
-                <h4 className="font-semibold">Temperature-Salinity Diagram</h4>
-              </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis 
-                    type="number" 
-                    dataKey="salinity" 
-                    domain={['dataMin - 0.1', 'dataMax + 0.1']}
-                    label={{ value: 'Salinity (PSU)', position: 'insideBottom', offset: -10 }}
-                  />
-                  <YAxis 
-                    type="number" 
-                    dataKey="temp"
-                    domain={['dataMin - 1', 'dataMax + 1']}
-                    label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }}
-                  />
-                  <Tooltip 
-                    cursor={{ strokeDasharray: '3 3' }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Scatter 
-                    data={temperatureData} 
-                    fill="hsl(var(--primary))"
-                    stroke="hsl(var(--primary-foreground))"
-                    strokeWidth={1}
-                  />
-                </ScatterChart>
-              </ResponsiveContainer>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Stats Footer */}
-      <div className="p-3 border-t bg-gradient-surface grid grid-cols-3 gap-4 text-center">
-        <div>
-          <div className="text-lg font-semibold text-primary">25.2°C</div>
-          <div className="text-xs text-muted-foreground">Surface Temp</div>
-        </div>
-        <div>
-          <div className="text-lg font-semibold text-accent">34.9 PSU</div>
-          <div className="text-xs text-muted-foreground">Surface Salinity</div>
-        </div>
-        <div>
-          <div className="text-lg font-semibold text-foreground">2,000m</div>
-          <div className="text-xs text-muted-foreground">Max Depth</div>
-        </div>
-      </div>
+        <TabsContent value="sql" className="flex-1 mt-4">
+          <h3 className="font-semibold mb-2 text-lg">Generated SQL Query</h3>
+          <div className="text-sm rounded-md p-4 bg-muted">
+            <CodeBlock text={sqlQuery || "No query generated."} language="sql" theme={atomOneLight} showLineNumbers={false} />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -1,6 +1,5 @@
 # This is the final, production-ready version of the AI agent.
-# It implements a full RAG pipeline and is configured to connect to the
-# local PostgreSQL database.
+# It now uses the 'Flash' model for better rate limits during the hackathon.
 
 import os
 from dotenv import load_dotenv
@@ -11,129 +10,75 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from sqlalchemy import text
 
 # --- Securely Load Configuration ---
 load_dotenv()
-
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# --- Global Initialization (to avoid reloading models on every call) ---
-# These variables will hold our initialized AI components.
-llm = None
-db = None
-rag_chain = None
+# --- Global Initialization ---
+llm, db, rag_chain, conversation_chain = None, None, None, None
 
 def initialize_ai_core():
-    """
-    Initializes all the core AI components (LLM, DB, Vector Store).
-    This function is called only once to prevent expensive reloads.
-    """
-    global llm, db, rag_chain
-
-    # If already initialized, do nothing.
-    if rag_chain is not None:
-        return
+    global llm, db, rag_chain, conversation_chain
+    if rag_chain is not None: return
 
     print("--- 🧠 Initializing FloatChat RAG AI Core (first run)... ---")
-
     os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
     
-    # 1. Initialize Connections
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0)
+    # --- STRATEGIC CHANGE: Switched to the 'flash' model for better rate limits ---
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
     
     db_uri = f"postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/postgres"
     db = SQLDatabase.from_uri(db_uri)
 
-    # 2. Load the REAL Vector Store from the folder we created.
     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vector_store = FAISS.load_local("ai_core/faiss_index", embedding_model, allow_dangerous_deserialization=True)
     retriever = vector_store.as_retriever()
 
-    # 3. Create the RAG Prompt Template (The MCP)
-    template = """
-    You are a PostgreSQL expert. Given a user question, first use the
-    retrieved context to understand the database schema and rules.
-    Then, create a syntactically correct PostgreSQL query to answer the question.
-    
-    **CRITICAL RULE: You are only allowed to use the following columns: 'float_id', 'profile_date', 'latitude', 'longitude', 'pressure', 'temperature', 'salinity'. Do NOT use any other columns, especially any columns ending with '_qc'.**
-
-    Unless the user specifies a number of examples, query for at most 50 results.
-    Never query for all columns from a table; you must specify the exact columns you need.
-    The table name is 'argo_profiles'. The 'profile_date' column is a TIMESTAMP.
-
-    Use the following format:
-
-    Question: "The user's question"
-    SQLQuery: "Your generated SQL query"
-
-    Only return the SQL query.
-
-    Here is some context to help you:
-    {context}
-
+    # --- Chain 1: The RAG SQL Generator ---
+    rag_prompt_template = """
+    You are a PostgreSQL expert. Based on the user's question and the provided context about the database schema, create a syntactically correct PostgreSQL query.
+    **CRITICAL RULE: Only use the following columns: 'float_id', 'profile_date', 'latitude', 'longitude', 'pressure', 'temperature', 'salinity'. Do NOT use any other columns.**
+    Unless specified, limit results to 50. Only return the SQL query.
+    Context: {context}
     Question: {question}
     SQLQuery:
     """
-    prompt = PromptTemplate.from_template(template)
-
-    # 4. Build the RAG Chain
+    rag_prompt = PromptTemplate.from_template(rag_prompt_template)
     rag_chain = (
         {"context": retriever, "question": RunnablePassthrough()}
-        | prompt
+        | rag_prompt
         | llm
         | StrOutputParser()
     )
+
+    # --- Chain 2: The Conversational Chain ---
+    convo_prompt_template = "You are a friendly and helpful oceanographic research assistant named FloatChat. Answer the user's question concisely. If you don't know the answer, say so. Question: {question}"
+    convo_prompt = PromptTemplate.from_template(convo_prompt_template)
+    conversation_chain = convo_prompt | llm | StrOutputParser()
+    
     print("--- ✅ AI Core Initialized Successfully ---")
 
-
 def run_ai_pipeline(question: str):
-    """
-    This is the main entry point that the frontend will call.
-    It takes a user's question, generates and executes a SQL query,
-    and returns a structured dictionary with the results.
-    """
     try:
-        # Ensure the AI core is initialized before running.
         initialize_ai_core()
+        # --- Intent Detection Router ---
+        router_prompt = f"Classify the user's intent as 'data_query' or 'conversational'. Question: \"{question}\"\nIntent:"
+        intent = llm.invoke(router_prompt).content.strip().lower()
+        print(f"Detected intent: {intent}")
 
-        print("\n--- Generating SQL Query using RAG ---")
-        generated_sql = rag_chain.invoke(question)
-        # Clean up the generated SQL to remove markdown formatting
-        generated_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
-        print(f"Generated SQL: {generated_sql}")
-
-        print("\n--- Executing SQL Query on the database ---")
-        result_data = db.run(generated_sql)
-        print(f"Query Result: {result_data}")
-        
-        # This is the "API Contract": always return a dictionary.
-        return {
-            "question": question,
-            "sql_query": generated_sql,
-            "result_data": result_data,
-            "error": None
-        }
-
+        if 'data_query' in intent:
+            generated_sql = rag_chain.invoke(question).replace("```sql", "").replace("```", "").strip()
+            print(f"Generated SQL: {generated_sql}")
+            with db._engine.connect() as connection:
+                result_data = [dict(row._mapping) for row in connection.execute(text(generated_sql))]
+            print(f"Query Result: {len(result_data)} rows found.")
+            return {"sql_query": generated_sql, "result_data": result_data, "error": None}
+        else:
+            response = conversation_chain.invoke({"question": question})
+            return {"sql_query": None, "result_data": response, "error": None}
     except Exception as e:
-        print(f"\n❌ An error occurred in the AI pipeline: {e}")
-        return {
-            "question": question,
-            "sql_query": "Error generating query.",
-            "result_data": None,
-            "error": str(e)
-        }
-
-# --- Main Execution Block (for direct testing of this script) ---
-if __name__ == '__main__':
-    test_question = "Show me the location of 5 floats with the highest salinity."
-    
-    print(f"\n--- Asking the AI a test question ---")
-    print(f"Question: '{test_question}'")
-    
-    response = run_ai_pipeline(test_question)
-
-    print("\n--- ✅ Final Response Payload ---")
-    print(response)
-    print("\n--- Script Finished ---")
+        return {"sql_query": "Error generating query.", "result_data": None, "error": str(e)}
 

@@ -2,10 +2,13 @@
 
 const API_URL = "http://127.0.0.1:8000/api/ask";
 
+// This interface defines the "API Contract". It's the exact shape of the
+// JSON object that our Python backend will send back.
 export interface AIResponse {
-  question: string;
-  sql_query: string;
-  result_data: string | null;
+  sql_query: string | null;
+  // CRITICAL: The data from the backend is now either a structured array of objects
+  // for data queries, or a simple string for conversational replies.
+  result_data: Record<string, any>[] | string | null;
   error: string | null;
 }
 
@@ -34,12 +37,10 @@ export const askAI = async (question: string): Promise<AIResponse> => {
     console.error("Failed to fetch from AI backend:", error);
     // Return a structured error so the UI can handle it gracefully
     return {
-      question,
       sql_query: "Error connecting to backend.",
       result_data: null,
       error: "Could not connect to the AI server. Is it running?",
     };
   }
 };
-
 

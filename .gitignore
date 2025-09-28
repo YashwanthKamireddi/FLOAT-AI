@@ -19,3 +19,4 @@ ai_core/faiss_index/
 
 # Frontend dependencies
 frontend/node_modules/
+node_modules

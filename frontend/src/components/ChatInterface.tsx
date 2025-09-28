@@ -1,25 +1,37 @@
-import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+// This is the final, integrated version of your chat interface.
+// It connects the beautiful UI to the powerful RAG AI backend.
+
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Send, Bot, User, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
+// --- CORE INTEGRATION ---
+// 1. Import the real API function and its response type.
+import { askAI, AIResponse } from '@/services/api';
+// We also import our utility for parsing the AI's data response.
+import { parseSqlResult } from '@/lib/utils';
+
+// --- Define the shape of our chat messages ---
 interface Message {
   id: string;
   content: string;
   sender: 'user' | 'assistant';
   timestamp: Date;
-  isLoading?: boolean;
 }
 
-const ChatInterface = () => {
+interface ChatInterfaceProps {
+  // This function will pass the REAL data up to the main dashboard
+  onDataReceived: (data: Record<string, any>[], sqlQuery: string) => void;
+}
+
+const ChatInterface = ({ onDataReceived }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Hello! I\'m your ARGO data assistant. I can help you explore oceanographic data, analyze float trajectories, and visualize ocean parameters. What would you like to discover today?',
+      content: "Hello! I'm your ARGO data assistant. How can I help you explore oceanographic data today?",
       sender: 'assistant',
       timestamp: new Date(),
     }
@@ -27,23 +39,19 @@ const ChatInterface = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
 
-  const scrollToBottom = () => {
+  // Auto-scroll logic to keep the latest message in view.
+  useEffect(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
     }
-  };
-
-  useEffect(() => {
-    scrollToBottom();
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -53,30 +61,56 @@ const ChatInterface = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
-    // Simulate API call to backend
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
+      // --- CORE INTEGRATION ---
+      // 2. Call the REAL AI backend instead of a mock function.
+      const response: AIResponse = await askAI(currentInput);
+
+      let assistantContent = "Sorry, I encountered an issue.";
       
+      if (response.error) {
+        assistantContent = `An error occurred: ${response.error}`;
+        onDataReceived([], "Error executing query.");
+      } else {
+        // 3. Handle the two types of responses from the AI Router
+        if (response.sql_query) { // This was a data query
+          const parsedData = parseSqlResult(response.sql_query, response.result_data);
+          
+          if (parsedData.length > 0) {
+            assistantContent = `I found ${parsedData.length} records. The exploration panel has been updated.`;
+            // 4. Send the real, parsed data up to the parent component.
+            onDataReceived(parsedData, response.sql_query);
+          } else {
+            assistantContent = "I ran the query, but it returned no results. Please try a different question.";
+            onDataReceived([], response.sql_query);
+          }
+        } else { // This was a conversational response
+          assistantContent = (response.result_data as string) || "I'm not sure how to answer that.";
+          // We don't update the data panel for a simple chat message.
+        }
+      }
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `I understand you're asking about "${userMessage.content}". I'm processing your request to analyze the ARGO float data. This would typically involve querying our NetCDF database and generating visualizations. The backend integration would handle the RAG pipeline and return structured ocean data insights.`,
+        content: assistantContent,
         sender: 'assistant',
         timestamp: new Date(),
       };
-
       setMessages(prev => [...prev, assistantMessage]);
-      
-      toast({
-        description: "Query processed successfully",
-      });
+
     } catch (error) {
-      toast({
-        variant: "destructive",
-        description: "Failed to process query. Please try again.",
-      });
+      console.error('Chat error:', error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: 'Failed to connect to the AI server. Please make sure it is running.',
+        sender: 'assistant',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -89,16 +123,9 @@ const ChatInterface = () => {
     }
   };
 
-  const suggestedQueries = [
-    "Show temperature profiles in the Indian Ocean",
-    "Find ARGO floats near coordinates 15°N, 68°E",
-    "Compare salinity data from last 6 months",
-    "Display BGC parameters in Arabian Sea"
-  ];
-
+  // The rest of your beautiful UI code remains the same.
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
       <div className="p-4 border-b bg-gradient-surface">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-gradient-ocean rounded-full flex items-center justify-center">
@@ -111,7 +138,6 @@ const ChatInterface = () => {
         </div>
       </div>
 
-      {/* Messages */}
       <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message) => (
@@ -121,7 +147,7 @@ const ChatInterface = () => {
             >
               <div className={`flex space-x-3 max-w-[80%] ${message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
                 <Avatar className="w-8 h-8">
-                  <AvatarFallback className={message.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-gradient-ocean text-white'}>
+                  <AvatarFallback className={message.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}>
                     {message.sender === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </AvatarFallback>
                 </Avatar>
@@ -132,13 +158,6 @@ const ChatInterface = () => {
                     : 'bg-secondary'
                 }`}>
                   <p className="text-sm">{message.content}</p>
-                  <p className={`text-xs mt-1 ${
-                    message.sender === 'user' 
-                      ? 'text-primary-foreground/70' 
-                      : 'text-muted-foreground'
-                  }`}>
-                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
                 </div>
               </div>
             </div>
@@ -146,59 +165,35 @@ const ChatInterface = () => {
           
           {isLoading && (
             <div className="flex justify-start">
-              <div className="flex space-x-3 max-w-[80%]">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-gradient-ocean text-white">
-                    <Bot className="w-4 h-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="bg-secondary rounded-lg p-3">
-                  <div className="flex items-center space-x-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <p className="text-sm">Processing your query...</p>
-                  </div>
-                </div>
-              </div>
+               <div className="flex space-x-3 max-w-[80%]">
+                 <Avatar className="w-8 h-8">
+                   <AvatarFallback className="bg-secondary"><Bot className="w-4 h-4" /></AvatarFallback>
+                 </Avatar>
+                 <div className="bg-secondary rounded-lg p-3">
+                   <div className="flex items-center space-x-2">
+                     <Loader2 className="w-4 h-4 animate-spin" />
+                     <p className="text-sm">Processing your query...</p>
+                   </div>
+                 </div>
+               </div>
             </div>
           )}
         </div>
       </ScrollArea>
 
-      {/* Suggested Queries */}
-      {messages.length === 1 && (
-        <div className="p-4 border-t bg-gradient-surface/50">
-          <p className="text-sm font-medium text-muted-foreground mb-2">Try asking:</p>
-          <div className="space-y-2">
-            {suggestedQueries.map((query, index) => (
-              <Button
-                key={index}
-                variant="outline"
-                size="sm"
-                className="w-full justify-start text-left h-auto py-2 px-3 whitespace-normal"
-                onClick={() => setInput(query)}
-              >
-                <span className="text-xs">{query}</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Input */}
       <div className="p-4 border-t bg-gradient-surface/30">
         <div className="flex space-x-2">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask about ARGO data, ocean parameters, or specific analyses..."
+            placeholder="Ask about ARGO data..."
             className="flex-1"
             disabled={isLoading}
           />
           <Button 
             onClick={handleSend} 
             disabled={!input.trim() || isLoading}
-            className="bg-gradient-ocean hover:bg-primary-hover text-white border-0"
           >
             <Send className="w-4 h-4" />
           </Button>
@@ -209,3 +204,4 @@ const ChatInterface = () => {
 };
 
 export default ChatInterface;
+
