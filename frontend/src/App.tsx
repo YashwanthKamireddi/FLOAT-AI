@@ -1,23 +1,137 @@
 // This is the main orchestrator for your entire frontend application.
 // It replaces the functionality of the original FloatChatDashboard.tsx.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Compass, CalendarDays, Database } from "lucide-react";
+import { Compass, CalendarDays, Database, Command } from "lucide-react";
 import ChatInterface from "@/components/ChatInterface";
 import DataVisualization from "@/components/DataVisualization";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { askAI } from "@/services/api";
+import CommandPalette from "@/components/CommandPalette";
+import { Button } from "@/components/ui/button";
 
 export interface AppData {
   data: Record<string, any>[];
   sqlQuery: string;
 }
 
+type PersonaMode = "guided" | "expert";
+
+interface DataSynopsis {
+  signature: string;
+  headline: string;
+  highlights: string[];
+  columns: string[];
+  sampleFloat?: string;
+  dateWindow?: { start: string | null; end: string | null };
+}
+
+interface ExpertFilters {
+  focusMetric: "temperature" | "salinity" | "pressure" | "oxygen" | "density";
+  floatId?: string;
+  depthRange?: [number | null, number | null];
+}
+
+const COMPLEXITY_THRESHOLD = 4;
+
+const GUIDED_EXAMPLES = [
+  "Where are the newest floats deployed this month?",
+  "Compare temperature and salinity for float 2902273 at 1000 dbar.",
+  "Summarize oxygen levels for floats in the North Atlantic.",
+  "Explain the recent trends in mixed layer depth near 45°N, 30°W.",
+];
+
+const createDataSynopsis = (data: Record<string, any>[]): DataSynopsis | null => {
+  if (!data.length) return null;
+
+  const columns = Object.keys(data[0]);
+  const floatIds = Array.from(new Set(data.map((row) => row.float_id).filter(Boolean)));
+
+  const dateCandidates = [
+    "profile_date",
+    "observation_date",
+    "date",
+    "time",
+  ];
+
+  const parseDate = (value: unknown) => {
+    if (!value) return null;
+    const parsed = new Date(value as string);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  let earliest: Date | null = null;
+  let latest: Date | null = null;
+
+  for (const row of data) {
+    for (const key of dateCandidates) {
+      if (row[key]) {
+        const parsed = parseDate(row[key]);
+        if (!parsed) continue;
+        if (!earliest || parsed < earliest) earliest = parsed;
+        if (!latest || parsed > latest) latest = parsed;
+      }
+    }
+  }
+
+  const headline = `${data.length.toLocaleString()} records across ${floatIds.length || "several"} floats`;
+  const highlights: string[] = [];
+
+  if (floatIds.length) {
+    highlights.push(`Sample float: ${floatIds.slice(0, 1).join(", ")}`);
+  }
+
+  if (earliest || latest) {
+    const format = (date: Date | null) =>
+      date
+        ? date.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : null;
+    highlights.push(
+      `Date window: ${format(earliest) || "n/a"} → ${format(latest) || "n/a"}`,
+    );
+  }
+
+  const numericColumns = columns.filter((column) =>
+    data.some((row) => typeof row[column] === "number" && !Number.isNaN(row[column]))
+  );
+
+  if (numericColumns.length) {
+    highlights.push(`Numeric fields detected: ${numericColumns.slice(0, 3).join(", ")}${
+      numericColumns.length > 3 ? "…" : ""
+    }`);
+  }
+
+  return {
+    signature: `${data.length}-${columns.join("|")}-${floatIds.length}`,
+    headline,
+    highlights,
+    columns,
+    sampleFloat: floatIds[0],
+    dateWindow: {
+      start: earliest ? earliest.toISOString() : null,
+      end: latest ? latest.toISOString() : null,
+    },
+  };
+};
+
 function App() {
   const [appData, setAppData] = useState<AppData>({ data: [], sqlQuery: "" });
   const [isLoading, setIsLoading] = useState(true); // For the initial welcome map
+  const [mode, setMode] = useState<PersonaMode>("guided");
+  const [complexityScore, setComplexityScore] = useState(0);
+  const [recentQueries, setRecentQueries] = useState<string[]>([]);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [dataSynopsis, setDataSynopsis] = useState<DataSynopsis | null>(null);
+  const [activeTab, setActiveTab] = useState("analysis");
+  const [expertFilters, setExpertFilters] = useState<ExpertFilters>({ focusMetric: "temperature" });
+  const hasAutoOpenedPaletteRef = useRef(false);
+  const [palettePrefill, setPalettePrefill] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -27,12 +141,33 @@ function App() {
 
       if (response && !response.error && Array.isArray(response.result_data) && response.sql_query) {
         setAppData({ data: response.result_data, sqlQuery: response.sql_query });
+        setDataSynopsis(createDataSynopsis(response.result_data));
       }
       setIsLoading(false);
     };
 
     fetchInitialData();
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key?.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === "k") {
+        event.preventDefault();
+        setShowCommandPalette(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (mode === "expert" && complexityScore >= COMPLEXITY_THRESHOLD && !hasAutoOpenedPaletteRef.current) {
+      hasAutoOpenedPaletteRef.current = true;
+      setShowCommandPalette(true);
+    }
+  }, [mode, complexityScore]);
 
   const oceanMetrics = useMemo(() => {
     if (!appData.data.length) {
@@ -71,83 +206,202 @@ function App() {
         : "—",
     };
   }, [appData.data]);
+
   const handleDataReceived = (data: Record<string, any>[], sqlQuery: string) => {
     setAppData({ data, sqlQuery });
+    setDataSynopsis(createDataSynopsis(data));
+    setActiveTab("analysis");
+    if (data.length) {
+      setIsLoading(false);
+    }
   };
+
+  const handleModeChange = (nextMode: PersonaMode) => {
+    if (nextMode === "guided") {
+      setMode("guided");
+      setComplexityScore(0);
+      hasAutoOpenedPaletteRef.current = false;
+      setExpertFilters({ focusMetric: "temperature" });
+    } else {
+      setMode("expert");
+    }
+  };
+
+  const handleComplexitySignal = (delta: number, query: string) => {
+    if (query && query.trim()) {
+      setRecentQueries((prev) => {
+        const next = [query.trim(), ...prev.filter((entry) => entry !== query.trim())];
+        return next.slice(0, 8);
+      });
+    }
+
+    setComplexityScore((prev) => {
+      const next = Math.max(0, prev + delta);
+      if (mode === "guided" && next >= COMPLEXITY_THRESHOLD) {
+        setMode("expert");
+      }
+      return next;
+    });
+  };
+
+  const handleCommandAction = (action: string, payload?: string) => {
+    switch (action) {
+      case "switch-guided":
+        handleModeChange("guided");
+        break;
+      case "switch-expert":
+        setMode("expert");
+        break;
+      case "open-analysis":
+        setActiveTab("analysis");
+        break;
+      case "open-map":
+        setActiveTab("map");
+        break;
+      case "open-profiles":
+        setActiveTab("profiles");
+        break;
+      case "open-sql":
+        setActiveTab("sql");
+        break;
+      case "focus-temperature":
+      case "focus-salinity":
+      case "focus-pressure":
+      case "focus-oxygen":
+      case "focus-density":
+        setExpertFilters((prev) => ({
+          ...prev,
+          focusMetric: (payload as ExpertFilters["focusMetric"]) || "temperature",
+        }));
+        break;
+      case "clear-filters":
+        setExpertFilters({ focusMetric: "temperature" });
+        break;
+      case "prefill-query":
+        if (payload) {
+          setPalettePrefill(payload);
+        }
+        break;
+      default:
+        break;
+    }
+
+    setShowCommandPalette(false);
+  };
+
+  const handlePrefillConsumed = useCallback(() => {
+    setPalettePrefill(null);
+  }, []);
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-      <div className="relative min-h-screen w-full overflow-hidden bg-ocean-gradient">
-        <div className="pointer-events-none absolute inset-0 grid-overlay opacity-30" />
-        <div className="pointer-events-none absolute -top-40 -left-32 h-96 w-96 rounded-full gradient-ring blur-3xl opacity-40" />
-        <div className="pointer-events-none absolute -bottom-48 right-0 h-[420px] w-[420px] rounded-full gradient-ring blur-3xl opacity-30" />
+      <div className="relative min-h-screen w-full overflow-hidden bg-control-room text-slate-900 transition-colors duration-500 dark:text-slate-100">
+        <div className="pointer-events-none absolute inset-0 ambient-veils opacity-60" />
+        <div className="pointer-events-none absolute inset-0 grid-overlay opacity-20" />
+        <div className="pointer-events-none absolute -top-56 -left-40 h-[420px] w-[420px] rounded-full gradient-ring blur-3xl opacity-40" />
+        <div className="pointer-events-none absolute -bottom-64 right-[-20%] h-[520px] w-[520px] rounded-full gradient-ring blur-3xl opacity-30" />
 
         <main className="relative z-10 flex min-h-screen flex-col">
-          <header className="mx-auto w-full max-w-7xl px-6 pt-12 pb-6">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700 shadow-sm dark:bg-white/10 dark:text-sky-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Live Ocean Intelligence
+          <header className="mx-auto w-full max-w-7xl px-6 pt-14 pb-10 lg:px-10">
+            <div className="flex flex-col gap-[32px] lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-[24px]">
+                <div className="inline-flex items-center gap-4 rounded-full bg-white/70 px-6 py-2 shadow-sm backdrop-blur-md dark:bg-white/10">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]" />
+                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.5em] text-slate-600 dark:text-slate-200">Mission Status</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-200">Operational</span>
                 </div>
-                <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl dark:text-slate-100">
-                  FloatChat
-                </h1>
-                <p className="mt-3 max-w-2xl text-base text-slate-600 dark:text-slate-300">
-                  Explore 53,000+ ARGO float profiles with conversational search, instant visualizations, and science-ready SQL at your fingertips.
-                </p>
+                <div className="space-y-2">
+                  <h1 className="text-4xl font-semibold leading-tight md:text-5xl">FloatChat Command Deck</h1>
+                  <p className="max-w-2xl text-base text-subtle md:text-lg">
+                    A focused workspace for guiding autonomous ocean missions. Question the ARGO archive, direct the analysis, and watch the main viewscreen respond in real time.
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3 self-start rounded-full bg-white/70 p-2 shadow-sm backdrop-blur lg:self-auto dark:bg-white/5">
-                <div className="hidden flex-col text-xs font-medium text-slate-500 dark:text-slate-300 sm:flex">
-                  <span>Adaptive theme</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-100">Day / Night ready</span>
-                </div>
+              <div className="flex items-center gap-3 self-start rounded-full bg-white/70 px-4 py-2 shadow-sm backdrop-blur lg:self-auto dark:bg-white/10">
                 <ThemeToggle />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowCommandPalette(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border-white/40 bg-white/85 px-3 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-slate-200"
+                >
+                  <Command className="h-3 w-3" />
+                  Command ⌘K
+                </Button>
               </div>
             </div>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               <StatCard
                 icon={Database}
-                label="Records analysed"
+                label="Records processed"
                 value={oceanMetrics.totalRecords}
-                helper="Latest AI data pull"
+                helper="Latest pipeline output"
               />
               <StatCard
                 icon={Compass}
-                label="Active floats"
+                label="Active float signatures"
                 value={oceanMetrics.uniqueFloats}
-                helper="Distinct float IDs in view"
+                helper="Distinct IDs in scope"
               />
               <StatCard
                 icon={CalendarDays}
-                label="Most recent profile"
+                label="Latest observation"
                 value={oceanMetrics.lastObservation}
-                helper="Timestamp of newest measurement"
+                helper="Timestamp auto-synced"
               />
             </div>
           </header>
 
-          <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 pb-12">
-            <div className="grid flex-1 gap-6 pb-4 lg:grid-cols-[400px,minmax(0,1fr)] xl:grid-cols-[420px,minmax(0,1fr)]">
-              <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/40 glass-panel">
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-32 translate-x-16 bg-gradient-to-l from-white/40 to-transparent blur-3xl opacity-40 dark:from-cyan-500/10" />
-                <ChatInterface onDataReceived={handleDataReceived} />
+          <section className="mx-auto flex w-full max-w-[1350px] flex-1 flex-col px-6 pb-16 lg:px-10 min-h-0">
+            <div className="grid flex-1 min-h-0 gap-8 pb-6 lg:grid-cols-[500px,minmax(0,1fr)] xl:grid-cols-[540px,minmax(0,1fr)] 2xl:grid-cols-[560px,minmax(0,1fr)]">
+              <div className="mission-panel flex h-full min-h-0 flex-col p-6">
+                <div className="pointer-events-none absolute inset-0 rounded-[32px] border border-white/10 dark:border-white/5" />
+                <div className="relative z-10 flex h-full flex-col">
+                  <ChatInterface
+                    onDataReceived={handleDataReceived}
+                    onComplexitySignal={handleComplexitySignal}
+                    dataSummary={dataSynopsis}
+                    palettePrefill={palettePrefill}
+                    onPrefillConsumed={handlePrefillConsumed}
+                  />
+                </div>
               </div>
 
-              <div className="relative flex h-full min-h-[420px] flex-col overflow-hidden rounded-3xl border border-white/40 glass-panel">
-                {isLoading ? (
-                  <div className="flex flex-1 flex-col justify-center gap-6 p-10">
-                    <LoadingPanel />
-                  </div>
-                ) : (
-                  <DataVisualization data={appData.data} sqlQuery={appData.sqlQuery} />
-                )}
+              <div className="viewscreen-shell flex min-h-[520px] flex-1 flex-col p-8">
+                <div className="relative z-10 flex h-full min-h-0 flex-col">
+                  {isLoading ? (
+                    <div className="flex flex-1 flex-col justify-center gap-6">
+                      <LoadingPanel />
+                    </div>
+                  ) : (
+                    <DataVisualization
+                      data={appData.data}
+                      sqlQuery={appData.sqlQuery}
+                      mode={mode}
+                      synopsis={dataSynopsis}
+                      filters={expertFilters}
+                      onFiltersChange={setExpertFilters}
+                      activeTab={activeTab}
+                      onTabChange={setActiveTab}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </section>
         </main>
+        <CommandPalette
+          open={showCommandPalette}
+          onOpenChange={setShowCommandPalette}
+          mode={mode}
+          onAction={handleCommandAction}
+          recentQueries={recentQueries}
+          filters={expertFilters}
+          activeTab={activeTab}
+        />
       </div>
     </ThemeProvider>
   );
@@ -161,7 +415,7 @@ interface StatCardProps {
 }
 
 const StatCard = ({ icon: Icon, label, value, helper }: StatCardProps) => (
-  <div className="glass-panel relative flex items-center gap-4 rounded-2xl border border-white/30 px-5 py-4">
+  <div className="glass-panel relative flex items-center gap-6 rounded-2xl border border-white/30 px-6 py-4">
     <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-gradient-ocean text-white shadow-lg shadow-sky-500/30">
       <Icon className="h-6 w-6" />
       <div className="pointer-events-none absolute inset-0 bg-white/35 mix-blend-overlay" />
@@ -177,18 +431,17 @@ const StatCard = ({ icon: Icon, label, value, helper }: StatCardProps) => (
 );
 
 const LoadingPanel = () => (
-  <div className="grid gap-5">
-    <div className="space-y-3">
-      <div className="h-4 w-40 rounded-full bg-white/60 dark:bg-white/10" />
-      <div className="h-6 w-64 rounded-full bg-white/70 dark:bg-white/10" />
+  <div className="grid gap-6">
+    <div className="space-y-4">
+      <div className="h-4 w-40 rounded-full bg-white/70 shadow-inner shadow-slate-200/40 dark:bg-white/10" />
+      <div className="h-6 w-64 rounded-full bg-white/80 shadow-inner shadow-slate-200/40 dark:bg-white/10" />
     </div>
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div className="h-28 rounded-2xl border border-white/40 bg-white/60 backdrop-blur dark:border-white/10 dark:bg-white/5" />
-      <div className="h-28 rounded-2xl border border-white/40 bg-white/60 backdrop-blur dark:border-white/10 dark:bg-white/5" />
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="h-28 rounded-2xl border border-white/30 bg-white/75 shadow-[0_25px_45px_-35px_rgba(15,23,42,0.5)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.05]" />
+      <div className="h-28 rounded-2xl border border-white/30 bg-white/75 shadow-[0_25px_45px_-35px_rgba(15,23,42,0.5)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.05]" />
     </div>
-    <div className="h-64 rounded-3xl border border-white/40 bg-white/50 backdrop-blur dark:border-white/10 dark:bg-white/5" />
+    <div className="h-64 rounded-[32px] border border-white/30 bg-white/70 shadow-[0_35px_70px_-45px_rgba(15,23,42,0.5)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]" />
   </div>
 );
 
 export default App;
-

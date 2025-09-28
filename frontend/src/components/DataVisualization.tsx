@@ -2,31 +2,215 @@
 // based on the data received from the AI.
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { CodeBlock, atomOneLight } from 'react-code-blocks';
 import Plot from 'react-plotly.js';
 import { useMemo } from "react";
+import type { Dispatch, SetStateAction } from "react";
+
+type PersonaMode = "guided" | "expert";
+
+type FocusMetric = "temperature" | "salinity" | "pressure" | "oxygen" | "density";
+
+interface ExpertFilters {
+  focusMetric: FocusMetric;
+  floatId?: string;
+  depthRange?: [number | null, number | null];
+}
+
+interface DataSynopsis {
+  signature: string;
+  headline: string;
+  highlights: string[];
+  columns: string[];
+  sampleFloat?: string;
+  dateWindow?: { start: string | null; end: string | null };
+}
 
 interface DataVisualizationProps {
   data: Record<string, any>[];
   sqlQuery: string;
+  mode: PersonaMode;
+  synopsis: DataSynopsis | null;
+  filters: ExpertFilters;
+  onFiltersChange: Dispatch<SetStateAction<ExpertFilters>>;
+  activeTab: string;
+  onTabChange: (nextTab: string) => void;
 }
 
-const DataVisualization = ({ data, sqlQuery }: DataVisualizationProps) => {
+const metricLabels: Record<FocusMetric, string> = {
+  temperature: "Temperature (°C)",
+  salinity: "Salinity (PSU)",
+  pressure: "Pressure (dbar)",
+  oxygen: "Oxygen (µmol/kg)",
+  density: "Density (kg/m³)",
+};
 
-  // useMemo is a professional React hook that prevents unnecessary recalculations.
-  // It will only re-check for these columns when the 'data' prop actually changes.
-  const hasLocationData = useMemo(() => data.length > 0 && 'latitude' in data[0] && 'longitude' in data[0], [data]);
-  const hasTempProfileData = useMemo(() => data.length > 0 && 'temperature' in data[0] && 'pressure' in data[0], [data]);
-  const hasSalProfileData = useMemo(() => data.length > 0 && 'salinity' in data[0] && 'pressure' in data[0], [data]);
-  
+const metricKeys: Record<FocusMetric, string> = {
+  temperature: "temperature",
+  salinity: "salinity",
+  pressure: "pressure",
+  oxygen: "oxygen",
+  density: "density",
+};
+
+const formatNumber = (value: number | null, maximumFractionDigits = 2) => {
+  if (value === null || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits,
+    minimumFractionDigits: 0,
+  }).format(value);
+};
+
+const computeStats = (values: number[]) => {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const sum = values.reduce((acc, val) => acc + val, 0);
+  const mean = sum / values.length;
+  const median = sorted.length % 2 === 0
+    ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+    : sorted[(sorted.length - 1) / 2];
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  const variance = values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / values.length;
+  const stddev = Math.sqrt(variance);
+
+  return { mean, median, min, max, stddev, count: values.length };
+};
+
+const extractNumericValues = (rows: Record<string, any>[], key: string) =>
+  rows
+    .map((row) => (typeof row[key] === "number" && !Number.isNaN(row[key]) ? (row[key] as number) : null))
+    .filter((value): value is number => value !== null);
+
+const DataVisualization = ({
+  data,
+  sqlQuery,
+  mode,
+  synopsis,
+  filters,
+  onFiltersChange,
+  activeTab,
+  onTabChange,
+}: DataVisualizationProps) => {
+
+  const filteredData = useMemo(() => {
+    if (mode !== "expert") {
+      return data;
+    }
+
+    let next = [...data];
+
+    if (filters.floatId) {
+      next = next.filter((row) => String(row.float_id) === filters.floatId);
+    }
+
+    if (filters.depthRange && filters.depthRange[0] !== null) {
+      const [minDepth, maxDepth] = filters.depthRange;
+      next = next.filter((row) => {
+        const depth = row.pressure;
+        if (typeof depth !== "number" || Number.isNaN(depth)) return false;
+        if (minDepth !== null && depth < minDepth) return false;
+        if (maxDepth !== null && depth > maxDepth) return false;
+        return true;
+      });
+    }
+
+    return next;
+  }, [data, filters, mode]);
+
+  const workingData = filteredData;
+
+  const hasLocationData = useMemo(
+    () => workingData.length > 0 && "latitude" in workingData[0] && "longitude" in workingData[0],
+    [workingData],
+  );
+  const hasTempProfileData = useMemo(
+    () => workingData.length > 0 && "temperature" in workingData[0] && "pressure" in workingData[0],
+    [workingData],
+  );
+  const hasSalProfileData = useMemo(
+    () => workingData.length > 0 && "salinity" in workingData[0] && "pressure" in workingData[0],
+    [workingData],
+  );
+
+  const floatOptions = useMemo(() => {
+    const floats = new Set<string>();
+    data.forEach((row) => {
+      if (row.float_id !== undefined && row.float_id !== null) {
+        floats.add(String(row.float_id));
+      }
+    });
+    return Array.from(floats).slice(0, 24);
+  }, [data]);
+
+  const depthBounds = useMemo(() => {
+    const depths = data
+      .map((row) => (typeof row.pressure === "number" && !Number.isNaN(row.pressure) ? (row.pressure as number) : null))
+      .filter((value): value is number => value !== null);
+    if (!depths.length) return null;
+    return {
+      min: Math.min(...depths),
+      max: Math.max(...depths),
+    };
+  }, [data]);
+
+  const depthSliderValue = useMemo(() => {
+    if (filters.depthRange) {
+      return filters.depthRange.map((value, index) => {
+        if (value === null && depthBounds) {
+          return index === 0 ? depthBounds.min : depthBounds.max;
+        }
+        return value ?? 0;
+      }) as [number, number];
+    }
+
+    if (depthBounds) {
+      return [depthBounds.min, depthBounds.max] as [number, number];
+    }
+
+    return [0, 0] as [number, number];
+  }, [filters.depthRange, depthBounds]);
+
+  const metricValues = useMemo(
+    () => extractNumericValues(workingData, metricKeys[filters.focusMetric]),
+    [workingData, filters.focusMetric],
+  );
+
+  const metricStats = useMemo(() => computeStats(metricValues), [metricValues]);
+
+  const updateFilters = (partial: Partial<ExpertFilters>) => {
+    onFiltersChange((prev) => ({ ...prev, ...partial }));
+  };
+
+  const handleDepthChange = (value: number[]) => {
+    if (!depthBounds) return;
+    updateFilters({ depthRange: [value[0], value[1]] });
+  };
+
+  const handleFloatChange = (value: string) => {
+    updateFilters({ floatId: value === "all" ? undefined : value });
+  };
+
+  const selectedFloat = filters.floatId ?? "all";
+
   // This is the view when the app first loads or when a query returns no data.
   if (data.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center bg-white/40 p-10 text-center backdrop-blur-sm dark:bg-white/5">
-        <div className="max-w-sm space-y-3">
-          <h3 className="text-2xl font-semibold">Explore the ocean</h3>
-          <p className="text-sm text-muted-foreground">
-            Ask the assistant for a region, float, or depth range to light up this dashboard with maps and profiles.
+      <div className="viewscreen-stage flex h-full flex-col items-center justify-center gap-6 text-center text-slate-700 dark:text-slate-200">
+        <div className="relative z-10 max-w-sm space-y-4">
+          <p className="control-label text-slate-500 dark:text-slate-300">Main viewscreen</p>
+          <h3 className="text-2xl font-semibold">Awaiting scientific directive</h3>
+          <p className="text-sm leading-relaxed text-subtle">
+            {mode === "guided"
+              ? "Choose one of the guided example questions or describe what you’d like to learn and I’ll populate the viewscreen with annotated results."
+              : "Issue a focused command or open the palette (⌘K) to jump straight to analysis, maps, profiles, or SQL."}
           </p>
         </div>
       </div>
@@ -34,103 +218,253 @@ const DataVisualization = ({ data, sqlQuery }: DataVisualizationProps) => {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 bg-white/50 p-6 text-sm backdrop-blur-sm dark:bg-white/[0.04]">
-      <div>
-        <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Explore the results</h2>
-        <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-300">Real-time visual analytics</p>
+    <div className="flex h-full min-h-0 flex-col gap-6 text-sm">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="control-label text-slate-500 dark:text-slate-300">Main viewscreen</p>
+            <h2 className="mt-2 text-2xl font-semibold leading-tight">Mission telemetry</h2>
+          </div>
+          <div className="rounded-full border border-white/30 bg-white/70 px-4 py-1 text-[0.7rem] uppercase tracking-[0.32em] text-slate-500 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-300">
+            Live feed
+          </div>
+        </div>
+        <p className="max-w-xl text-sm text-subtle">
+          {mode === "guided"
+            ? "I’ll narrate each view, highlighting what matters most. Toggle the tabs to see how the story unfolds."
+            : "Use the tabs or the ⌘K palette to jump between telemetry, geospatial tracking, profile analysis, and the raw SQL driving every chart."}
+        </p>
       </div>
 
-      <Tabs defaultValue="analysis" className="flex flex-1 flex-col">
-        <TabsList className="flex w-full flex-wrap gap-2 rounded-2xl bg-white/60 p-1 shadow-sm dark:bg-white/10">
-          <TabsTrigger value="analysis" className="rounded-xl px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10">📊 Analysis</TabsTrigger>
-          <TabsTrigger value="map" disabled={!hasLocationData} className="rounded-xl px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10">🗺️ Ocean Map</TabsTrigger>
-          <TabsTrigger value="profiles" disabled={!hasTempProfileData && !hasSalProfileData} className="rounded-xl px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10">📈 Profiles</TabsTrigger>
-          <TabsTrigger value="sql" className="rounded-xl px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10">🔍 SQL Query</TabsTrigger>
+      {synopsis && (
+        <div className="rounded-[24px] border border-white/25 bg-white/75 p-6 shadow-[0_25px_50px_-35px_rgba(15,23,42,0.5)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06]">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">Data briefing</p>
+          <h4 className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-100">{synopsis.headline}</h4>
+          <ul className="mt-4 grid gap-2 text-sm text-subtle md:grid-cols-2">
+            {synopsis.highlights.map((line) => (
+              <li key={line} className="flex items-start gap-2">
+                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-400" />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          {synopsis.sampleFloat && (
+            <p className="mt-4 text-xs uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">
+              Example float: {synopsis.sampleFloat}
+            </p>
+          )}
+        </div>
+      )}
+
+      {mode === "expert" && metricStats && (
+        <div className="grid gap-4 rounded-[24px] border border-white/20 bg-white/65 p-6 shadow-[0_25px_50px_-35px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.05]">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="control-label text-slate-500 dark:text-slate-300">Metric spotlight</p>
+              <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{metricLabels[filters.focusMetric]}</h4>
+            </div>
+            <Badge className="rounded-full bg-slate-900 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-white dark:bg-white/80 dark:text-slate-900">
+              n = {metricStats.count}
+            </Badge>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <StatPill label="Mean" value={formatNumber(metricStats.mean)} />
+            <StatPill label="Median" value={formatNumber(metricStats.median)} />
+            <StatPill label="Min" value={formatNumber(metricStats.min)} />
+            <StatPill label="Max" value={formatNumber(metricStats.max)} />
+            <StatPill label="Std Dev" value={formatNumber(metricStats.stddev)} />
+          </div>
+        </div>
+      )}
+
+      {mode === "expert" && (
+        <div className="rounded-[24px] border border-white/20 bg-white/65 p-6 shadow-[0_25px_50px_-40px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.06]">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">Float focus</p>
+              <Select value={selectedFloat} onValueChange={handleFloatChange}>
+                <SelectTrigger className="w-full rounded-xl border border-white/30 bg-white/80 text-sm text-slate-600 shadow-sm focus:ring-0 dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-100">
+                  <SelectValue placeholder="All floats" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60 overflow-y-auto rounded-xl border border-white/20 bg-white/95 dark:border-white/10 dark:bg-slate-900/95">
+                  <SelectItem value="all">All floats</SelectItem>
+                  {floatOptions.map((id) => (
+                    <SelectItem key={id} value={id}>
+                      Float {id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">Depth window (dbar)</p>
+              {depthBounds ? (
+                <>
+                  <Slider
+                    value={depthSliderValue}
+                    min={Math.floor(depthBounds.min)}
+                    max={Math.ceil(depthBounds.max)}
+                    step={25}
+                    onValueChange={handleDepthChange}
+                  />
+                  <div className="flex justify-between text-xs text-slate-500 dark:text-slate-300">
+                    <span>{Math.round(depthSliderValue[0])}</span>
+                    <span>{Math.round(depthSliderValue[1])}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="rounded-xl border border-dashed border-white/40 p-4 text-xs text-slate-500 dark:border-white/15 dark:text-slate-300">
+                  Depth filtering unavailable for this result set.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">Metric lens</p>
+              <Select value={filters.focusMetric} onValueChange={(value) => updateFilters({ focusMetric: value as FocusMetric })}>
+                <SelectTrigger className="w-full rounded-xl border border-white/30 bg-white/80 text-sm text-slate-600 shadow-sm focus:ring-0 dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-100">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border border-white/20 bg-white/95 dark:border-white/10 dark:bg-slate-900/95">
+                  {Object.entries(metricLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+
+  <Tabs value={activeTab} onValueChange={onTabChange} className="flex flex-1 min-h-0 flex-col gap-6">
+        <TabsList className="viewscreen-panel flex w-full shrink-0 flex-wrap gap-2 p-2">
+          <TabsTrigger value="analysis" className="rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">📊 Analysis</TabsTrigger>
+          <TabsTrigger value="map" disabled={!hasLocationData} className="rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm disabled:opacity-40 dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">🗺️ Ocean Map</TabsTrigger>
+          <TabsTrigger value="profiles" disabled={!hasTempProfileData && !hasSalProfileData} className="rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm disabled:opacity-40 dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">📈 Profiles</TabsTrigger>
+          <TabsTrigger value="sql" className="rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">🔍 SQL Query</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="analysis" className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/90 p-5 shadow-inner dark:border-white/10 dark:bg-white/[0.06]">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Raw Data ({data.length} records)</h3>
-          <div className="mt-3 max-h-[360px] overflow-auto rounded-2xl border border-white/70 shadow-sm dark:border-white/10">
-            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-white/10">
-              <thead className="sticky top-0 bg-white/90 text-xs uppercase tracking-wide text-slate-500 dark:bg-white/10 dark:text-slate-200">
-                <tr>
-                  {Object.keys(data[0]).map((key) => (
-                    <th key={key} className="px-4 py-2 text-left font-semibold">
-                      {key.replace(/_/g, " ")}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100/70 dark:divide-white/5">
-                {data.map((row, i) => (
-                  <tr key={i} className="odd:bg-white/90 even:bg-white/70 dark:odd:bg-white/[0.08] dark:even:bg-white/[0.04]">
-                    {Object.values(row).map((val, j) => (
-                      <td key={j} className="px-4 py-2 font-medium text-slate-700 dark:text-slate-100">
-                        {String(val ?? '—')}
-                      </td>
+        <TabsContent value="analysis" className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/20 bg-white/85 p-6 shadow-[0_35px_70px_-50px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_45px_90px_-55px_rgba(2,6,23,0.85)]">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Raw data {`(${workingData.length} records)`}</h3>
+          {workingData.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-300">
+              Filters removed all rows. Adjust your focus above to bring data back into view.
+            </div>
+          ) : (
+            <ScrollArea className="data-scroll mt-4 max-h-[360px] rounded-2xl border border-white/40 shadow-sm dark:border-white/10">
+              <div className="min-w-full">
+                <table className="min-w-full divide-y divide-slate-200 text-sm leading-relaxed dark:divide-white/10">
+                  <thead className="sticky top-0 bg-white/90 text-xs uppercase tracking-[0.3em] text-slate-500 dark:bg-white/10 dark:text-slate-200">
+                    <tr>
+                      {Object.keys(workingData[0]).map((key) => (
+                        <th key={key} className="px-4 py-4 text-left font-semibold">
+                          {key.replace(/_/g, " ")}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100/70 dark:divide-white/5">
+                    {workingData.map((row, i) => (
+                      <tr key={i} className="odd:bg-white/95 even:bg-white/80 dark:odd:bg-white/[0.08] dark:even:bg-white/[0.04]">
+                        {Object.values(row).map((val, j) => (
+                          <td key={j} className="px-4 py-4 font-medium text-slate-700 dark:text-slate-100">
+                            {String(val ?? "—")}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </tbody>
+                </table>
+              </div>
+            </ScrollArea>
+          )}
         </TabsContent>
 
-        <TabsContent value="map" className="mt-4 flex flex-1 overflow-hidden rounded-3xl border border-white/60 bg-transparent shadow-inner dark:border-white/10">
-          <Plot
-            data={[{
-              type: 'scattermapbox',
-              lat: data.map(r => r.latitude),
-              lon: data.map(r => r.longitude),
-              text: data.map(r => `Float: ${r.float_id}`),
-              mode: 'markers',
-              marker: { color: '#2563eb', size: 10, opacity: 0.85 },
-            }]}
-            layout={{
-              mapbox: { style: 'open-street-map', zoom: 1.6, center: { lat: data[0].latitude, lon: data[0].longitude } },
-              margin: { r: 0, t: 0, b: 0, l: 0 },
-              paper_bgcolor: 'rgba(0,0,0,0)',
-              plot_bgcolor: 'rgba(0,0,0,0)'
-            }}
-            style={{ width: '100%', height: '100%' }}
-            useResizeHandler={true}
-          />
-        </TabsContent>
-        
-        <TabsContent value="profiles" className="mt-4 grid flex-1 grid-cols-1 gap-4 overflow-auto rounded-3xl border border-white/60 bg-white/80 p-5 shadow-inner dark:border-white/10 dark:bg-white/[0.06] md:grid-cols-2">
-           {hasTempProfileData && 
+        <TabsContent value="map" className="flex flex-1 min-h-0 overflow-hidden rounded-[28px] border border-white/20 bg-transparent shadow-[0_35px_70px_-50px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:shadow-[0_45px_90px_-55px_rgba(2,6,23,0.85)]">
+          {!hasLocationData || workingData.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-300">
+              Location metadata isn’t available for the current selection.
+            </div>
+          ) : (
             <Plot
-              data={[{ x: data.map(r => r.temperature), y: data.map(r => r.pressure), mode: 'lines+markers', line: { color: '#0ea5e9', width: 3 } }]}
+              data={[{
+                type: 'scattermapbox',
+                lat: workingData.map((r) => r.latitude),
+                lon: workingData.map((r) => r.longitude),
+                text: workingData.map((r) => `Float: ${r.float_id}`),
+                mode: 'markers',
+                marker: { color: '#2563eb', size: 10, opacity: 0.85 },
+              }]}
+              layout={{
+                mapbox: {
+                  style: 'open-street-map',
+                  zoom: 1.6,
+                  center: { lat: workingData[0].latitude, lon: workingData[0].longitude },
+                },
+                margin: { r: 0, t: 0, b: 0, l: 0 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+              }}
+              style={{ width: '100%', height: '100%' }}
+              useResizeHandler={true}
+            />
+          )}
+        </TabsContent>
+
+  <TabsContent value="profiles" className="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-auto rounded-[28px] border border-white/20 bg-white/85 p-6 shadow-[0_35px_70px_-50px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_45px_90px_-55px_rgba(2,6,23,0.85)] md:grid-cols-2">
+          {hasTempProfileData ? (
+            <Plot
+              data={[{
+                x: workingData.map((r) => r.temperature),
+                y: workingData.map((r) => r.pressure),
+                mode: 'lines+markers',
+                line: { color: '#0ea5e9', width: 3 },
+              }]}
               layout={{
                 title: { text: 'Temperature vs. Depth' },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 yaxis: { autorange: 'reversed', title: { text: 'Pressure (dbar)' }, gridcolor: 'rgba(148, 163, 184, 0.3)' },
-                xaxis: { title: { text: 'Temperature (°C)' }, gridcolor: 'rgba(148, 163, 184, 0.3)' }
+                xaxis: { title: { text: 'Temperature (°C)' }, gridcolor: 'rgba(148, 163, 184, 0.3)' },
               }}
               style={{ width: '100%', height: '360px' }}
               useResizeHandler={true}
             />
-           }
-           {hasSalProfileData &&
+          ) : (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-white/40 p-6 text-sm text-slate-500 dark:border-white/15 dark:text-slate-300">
+              Temperature profiles unavailable for this selection.
+            </div>
+          )}
+
+          {hasSalProfileData ? (
             <Plot
-              data={[{ x: data.map(r => r.salinity), y: data.map(r => r.pressure), mode: 'lines+markers', line: { color: '#6366f1', width: 3 } }]}
+              data={[{
+                x: workingData.map((r) => r.salinity),
+                y: workingData.map((r) => r.pressure),
+                mode: 'lines+markers',
+                line: { color: '#6366f1', width: 3 },
+              }]}
               layout={{
                 title: { text: 'Salinity vs. Depth' },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 yaxis: { autorange: 'reversed', title: { text: 'Pressure (dbar)' }, gridcolor: 'rgba(148, 163, 184, 0.3)' },
-                xaxis: { title: { text: 'Salinity (PSU)' }, gridcolor: 'rgba(148, 163, 184, 0.3)' }
+                xaxis: { title: { text: 'Salinity (PSU)' }, gridcolor: 'rgba(148, 163, 184, 0.3)' },
               }}
               style={{ width: '100%', height: '360px' }}
               useResizeHandler={true}
             />
-           }
+          ) : (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-white/40 p-6 text-sm text-slate-500 dark:border-white/15 dark:text-slate-300">
+              Salinity profiles unavailable for this selection.
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="sql" className="mt-4 flex-1 rounded-3xl border border-white/60 bg-slate-900/95 p-5 shadow-inner dark:border-white/10">
-          <h3 className="text-lg font-semibold text-slate-100">Generated SQL Query</h3>
-          <div className="mt-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm">
+        <TabsContent value="sql" className="flex-1 min-h-0 rounded-[28px] border border-slate-800/70 bg-slate-950/95 p-6 shadow-[0_45px_90px_-55px_rgba(15,23,42,0.7)]">
+          <h3 className="text-lg font-semibold text-slate-100">Generated SQL query</h3>
+          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-sm">
             <CodeBlock
               text={sqlQuery || "No query generated."}
               language="sql"
@@ -146,3 +480,10 @@ const DataVisualization = ({ data, sqlQuery }: DataVisualizationProps) => {
 };
 
 export default DataVisualization;
+
+const StatPill = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-2xl border border-white/30 bg-white/80 p-4 shadow-[0_25px_45px_-35px_rgba(15,23,42,0.5)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]">
+    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">{label}</p>
+    <p className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{value}</p>
+  </div>
+);
