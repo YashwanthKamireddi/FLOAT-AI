@@ -354,7 +354,7 @@ const DataVisualization = ({
               </div>
             ) : (
               <div className="mt-4 flex-1 overflow-hidden">
-                <ScrollArea className="data-scroll h-full rounded-2xl border border-white/40 shadow-sm dark:border-white/10">
+                <ScrollArea className="data-scroll h-full max-h-[60vh] rounded-2xl border border-white/40 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]">
                   <div className="min-w-full">
                     <table className="min-w-full divide-y divide-slate-200 text-sm leading-relaxed dark:divide-white/10">
                       <thead className="sticky top-0 bg-white/90 text-xs uppercase tracking-[0.3em] text-slate-500 dark:bg-white/10 dark:text-slate-200">
