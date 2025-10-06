@@ -548,101 +548,100 @@ Let me know if you’d like to dive into any detail further or filter this view.
         </div>
       </header>
 
-      <ScrollArea ref={scrollAreaRef} className="data-scroll relative flex-1 min-h-0 max-h-[calc(100vh-260px)] rounded-[24px] border border-white/20 bg-white/55 p-5 shadow-[0_34px_68px_-42px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
-        <div
-          className="relative flex flex-col gap-6 pr-6 sm:pr-8"
-          style={{ paddingBottom: `${bottomSafePadding}px` }}
-        >
-          {messages.map((message) => {
-            const isUser = message.sender === 'user';
-            const isSql = message.type === 'sql';
-            const isError = message.type === 'error';
-            const contentClassName = cn(
-              'whitespace-pre-wrap break-words text-sm leading-relaxed text-left',
-              isSql && 'font-mono text-[0.85rem]',
-              isError && 'text-red-600 dark:text-red-300'
-            );
+      <div className="relative flex-1 min-h-0">
+        <ScrollArea ref={scrollAreaRef} className="data-scroll h-full max-h-[calc(100vh-260px)] rounded-[24px] border border-white/20 bg-white/55 p-5 shadow-[0_34px_68px_-42px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
+          <div
+            className="flex flex-col gap-6 pr-6 sm:pr-8"
+            style={{ paddingBottom: `${bottomSafePadding}px` }}
+          >
+            {messages.map((message) => {
+              const isUser = message.sender === 'user';
+              const isSql = message.type === 'sql';
+              const isError = message.type === 'error';
+              const contentClassName = cn(
+                'whitespace-pre-wrap break-words text-sm leading-relaxed text-left',
+                isSql && 'font-mono text-[0.85rem]',
+                isError && 'text-red-600 dark:text-red-300'
+              );
 
-            return (
-              <div
-                key={message.id}
-                className={cn('flex w-full', isUser ? 'justify-end' : 'justify-start')}
-              >
+              return (
                 <div
-                  className={cn(
-                    'flex max-w-[min(760px,calc(100%-1.75rem))] items-end gap-3 sm:gap-4',
-                    isUser ? 'flex-row-reverse text-right' : 'flex-row text-left'
-                  )}
+                  key={message.id}
+                  className={cn('flex w-full', isUser ? 'justify-end' : 'justify-start')}
                 >
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarFallback className={isUser ? 'bg-primary text-primary-foreground shadow-[0_10px_25px_-15px_rgba(14,165,233,0.7)]' : 'bg-secondary/70 text-slate-700 dark:bg-white/[0.08] dark:text-white'}>
-                      {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                    </AvatarFallback>
-                  </Avatar>
-
                   <div
                     className={cn(
-                      'relative inline-flex w-fit max-w-[min(700px,calc(100%-2.5rem))] flex-col overflow-hidden rounded-2xl px-4 py-3 text-left shadow transition-shadow',
-                      isUser
-                        ? 'bg-primary text-primary-foreground shadow-lg shadow-sky-500/30'
-                        : 'bg-white/90 text-slate-700 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.55)] backdrop-blur-lg dark:bg-white/[0.08] dark:text-slate-100'
+                      'flex max-w-[min(760px,calc(100%-1.75rem))] items-end gap-3 sm:gap-4',
+                      isUser ? 'flex-row-reverse text-right' : 'flex-row text-left'
                     )}
                   >
-                    {!isUser && message.title && (
-                      <p className="mb-1 text-[0.65rem] uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
-                        {message.title}
-                      </p>
-                    )}
-                    <p className={contentClassName}>{message.content}</p>
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarFallback className={isUser ? 'bg-primary text-primary-foreground shadow-[0_10px_25px_-15px_rgba(14,165,233,0.7)]' : 'bg-secondary/70 text-slate-700 dark:bg-white/[0.08] dark:text-white'}>
+                        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div
+                      className={cn(
+                        'relative inline-flex w-fit max-w-[min(700px,calc(100%-2.5rem))] flex-col overflow-hidden rounded-2xl px-4 py-3 text-left shadow transition-shadow',
+                        isUser
+                          ? 'bg-primary text-primary-foreground shadow-lg shadow-sky-500/30'
+                          : 'bg-white/90 text-slate-700 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.55)] backdrop-blur-lg dark:bg-white/[0.08] dark:text-slate-100'
+                      )}
+                    >
+                      {!isUser && message.title && (
+                        <p className="mb-1 text-[0.65rem] uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
+                          {message.title}
+                        </p>
+                      )}
+                      <p className={contentClassName}>{message.content}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-          {isLoading && (
-            <div className="flex w-full justify-start">
-              <div className="flex max-w-[min(760px,calc(100%-1.75rem))] items-end gap-3 sm:gap-4">
-                <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-secondary/70 text-slate-700 dark:bg-white/[0.08] dark:text-white">
-                    <Bot className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="inline-flex w-fit max-w-[min(700px,calc(100%-2.5rem))] flex-col rounded-2xl bg-white/90 px-4 py-3 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.55)] backdrop-blur-lg dark:bg-white/[0.08]">
-                  <div className="flex items-center gap-3 text-slate-600 dark:text-slate-200" aria-live="polite">
-                    <span className="control-label text-[0.58rem] opacity-70">Drafting</span>
-                    <span className="sr-only">Assistant is typing</span>
-                    <div className="flex items-center gap-1.5" aria-hidden="true">
-                      <span className="typing-dot" style={{ animationDelay: '0ms' }} />
-                      <span className="typing-dot" style={{ animationDelay: '0.14s' }} />
-                      <span className="typing-dot" style={{ animationDelay: '0.28s' }} />
+            {isLoading && (
+              <div className="flex w-full justify-start">
+                <div className="flex max-w-[min(760px,calc(100%-1.75rem))] items-end gap-3 sm:gap-4">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="bg-secondary/70 text-slate-700 dark:bg-white/[0.08] dark:text-white">
+                      <Bot className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="inline-flex w-fit max-w-[min(700px,calc(100%-2.5rem))] flex-col rounded-2xl bg-white/90 px-4 py-3 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.55)] backdrop-blur-lg dark:bg-white/[0.08]">
+                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-200" aria-live="polite">
+                      <span className="control-label text-[0.58rem] opacity-70">Drafting</span>
+                      <span className="sr-only">Assistant is typing</span>
+                      <div className="flex items-center gap-1.5" aria-hidden="true">
+                        <span className="typing-dot" style={{ animationDelay: '0ms' }} />
+                        <span className="typing-dot" style={{ animationDelay: '0.14s' }} />
+                        <span className="typing-dot" style={{ animationDelay: '0.28s' }} />
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        </ScrollArea>
 
-          {showNewMessagesBadge && (
-            <div
-              className="pointer-events-none absolute left-0 right-0 flex justify-center"
-              style={{ bottom: `${composerHeight + 32}px` }}
+        {showNewMessagesBadge && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-50 flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                scrollToBottom();
+                setShowNewMessagesBadge(false);
+              }}
+              className="pointer-events-auto inline-flex items-center gap-2 rounded-full border-2 border-white/40 bg-gradient-to-br from-sky-600 to-indigo-600 px-5 py-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-white shadow-[0_12px_28px_-8px_rgba(14,165,233,0.6)] backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-[0_16px_36px_-6px_rgba(14,165,233,0.7)] active:scale-95 dark:border-white/20"
             >
-              <button
-                type="button"
-                onClick={() => {
-                  scrollToBottom();
-                  setShowNewMessagesBadge(false);
-                }}
-                className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 dark:bg-white/85 dark:text-slate-900"
-              >
-                New message
-                <ChevronRight className="h-3 w-3 rotate-90" />
-              </button>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+              New message
+              <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+            </button>
+          </div>
+        )}
+      </div>
       <form
         onSubmit={(event) => {
           event.preventDefault();

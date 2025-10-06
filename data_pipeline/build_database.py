@@ -27,7 +27,7 @@ def main():
 
     root_data_folder = 'nc files'
 
-    print(f"--- 🌊 Starting Bulk ETL Process for folder: '{root_data_folder}' ---")
+    print(f"--- Starting Bulk ETL Process for folder: '{root_data_folder}' ---")
     print(f"--- Target Database: Local PostgreSQL ---")
 
     # --- Database Connection ---

@@ -56,6 +56,18 @@ python api_server.py
 
 The FastAPI service listens on `http://localhost:8000` by default. Adjust `API_HOST`/`API_PORT` in `.env` to deploy to a different interface.
 
+### API surface
+
+The backend now exposes a small REST surface for operational telemetry in addition to `/api/ask`:
+
+- `GET /api/stats` – aggregate fleet metrics (total floats, last ingest timestamp).
+- `GET /api/floats` – latest position & health snapshot per float, filterable by ID/date window/status.
+- `GET /api/floats/{id}/profiles/{variable}` – most recent profile curve for the given float (`temperature`, `salinity`, or `pressure`).
+- `GET /api/floats/{id}/timeseries` – rolling time series (default: temperature) for charts and anomaly detection.
+- `GET /api/floats/{id}/quality` – simple completeness scores powering the QA panels.
+
+These routes back the map widgets and data panels in the FloatAI dashboard and degrade gracefully to sample data if the database is unreachable.
+
 ## 5. Run the frontend
 
 ```powershell

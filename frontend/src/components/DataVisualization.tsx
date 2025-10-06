@@ -217,7 +217,7 @@ const DataVisualization = ({
   };
 
   const handleDepthChange = (value: number[]) => {
-    if (!depthBounds) return;
+    if (!depthBounds || value.length !== 2) return;
     updateFilters({ depthRange: [value[0], value[1]] });
   };
 
@@ -226,6 +226,12 @@ const DataVisualization = ({
   };
 
   const selectedFloat = filters.floatId ?? "all";
+
+  const isDepthFiltered = useMemo(() => {
+    if (!depthBounds || !filters.depthRange) return false;
+    const [min, max] = filters.depthRange;
+    return (min !== null && min > depthBounds.min) || (max !== null && max < depthBounds.max);
+  }, [depthBounds, filters.depthRange]);
 
   // This is the view when the app first loads or when a query returns no data.
   if (data.length === 0) {
@@ -306,7 +312,7 @@ const DataVisualization = ({
 
       {mode === "expert" && (
         <div className="rounded-[24px] border border-white/20 bg-white/65 p-6 shadow-[0_25px_50px_-40px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.06]">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-4">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">Float focus</p>
               <Select value={selectedFloat} onValueChange={handleFloatChange}>
@@ -323,22 +329,51 @@ const DataVisualization = ({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">Depth window (dbar)</p>
+            <div className="space-y-3 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-300">Depth window (dbar)</p>
+                  {isDepthFiltered && (
+                    <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.28em] text-sky-600 dark:bg-sky-400/20 dark:text-sky-300">
+                      Active
+                    </span>
+                  )}
+                </div>
+                {depthBounds && isDepthFiltered && (
+                  <button
+                    onClick={() => updateFilters({ depthRange: [depthBounds.min, depthBounds.max] })}
+                    className="text-xs font-medium text-sky-500 transition-colors hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
               {depthBounds ? (
-                <>
+                <div className="space-y-3">
                   <Slider
                     value={depthSliderValue}
                     min={Math.floor(depthBounds.min)}
                     max={Math.ceil(depthBounds.max)}
-                    step={25}
+                    step={10}
+                    minStepsBetweenThumbs={1}
                     onValueChange={handleDepthChange}
+                    className="w-full"
                   />
-                  <div className="flex justify-between text-xs text-slate-500 dark:text-slate-300">
-                    <span>{Math.round(depthSliderValue[0])}</span>
-                    <span>{Math.round(depthSliderValue[1])}</span>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white/60 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                      <span className="text-[0.65rem] uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Min</span>
+                      <span className="font-bold">{Math.round(depthSliderValue[0])}</span>
+                    </div>
+                    <div className="h-px flex-1 bg-gradient-to-r from-slate-200/60 via-slate-300/40 to-slate-200/60 dark:from-white/10 dark:via-white/5 dark:to-white/10" />
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white/60 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                      <span className="text-[0.65rem] uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Max</span>
+                      <span className="font-bold">{Math.round(depthSliderValue[1])}</span>
+                    </div>
                   </div>
-                </>
+                  <p className="text-[0.7rem] text-slate-500 dark:text-slate-400">
+                    Filtering {workingData.length} of {data.length} records in range
+                  </p>
+                </div>
               ) : (
                 <p className="rounded-xl border border-dashed border-white/40 p-4 text-xs text-slate-500 dark:border-white/15 dark:text-slate-300">
                   Depth filtering unavailable for this result set.

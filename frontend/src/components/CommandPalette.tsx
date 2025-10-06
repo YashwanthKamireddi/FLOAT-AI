@@ -98,7 +98,11 @@ const CommandPalette = ({
             <CommandItem key={value} onSelect={() => onAction(action)}>
               <Icon className="mr-2 h-4 w-4" />
               <span>{label}</span>
-              {activeTab === value && <Badge className="ml-auto rounded-full bg-slate-900 px-2 py-0 text-[0.6rem] font-semibold uppercase tracking-[0.24em] text-white">Current</Badge>}
+              {activeTab === value && (
+                <Badge className="ml-auto rounded-full bg-primary/15 px-2 py-0 text-[0.6rem] font-semibold uppercase tracking-[0.3em] text-primary">
+                  Current
+                </Badge>
+              )}
             </CommandItem>
           ))}
         </CommandGroup>

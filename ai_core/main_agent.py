@@ -24,6 +24,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 
 logger = logging.getLogger(__name__)
@@ -320,6 +321,26 @@ def initialize_ai_core() -> None:
     db = components["db"]
     rag_chain = components["rag_chain"]
     conversation_chain = components["conversation_chain"]
+
+
+def get_sql_database() -> SQLDatabase:
+    """Return the shared SQLDatabase instance, ensuring initialization has occurred."""
+
+    initialize_ai_core()
+    if db is None:
+        raise RuntimeError("SQL database has not been initialized.")
+
+    if not isinstance(db, SQLDatabase):  # pragma: no cover - defensive guard
+        raise RuntimeError("Unexpected database instance type encountered.")
+
+    return cast(SQLDatabase, db)
+
+
+def get_sql_engine() -> Engine:
+    """Expose the underlying SQLAlchemy engine used by the LangChain SQLDatabase wrapper."""
+
+    sql_db = get_sql_database()
+    return sql_db._engine  # type: ignore[attr-defined]  # pylint: disable=protected-access
 
 
 def run_ai_pipeline(question: str) -> Dict[str, Any]:
