@@ -7,9 +7,11 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CodeBlock, atomOneLight } from 'react-code-blocks';
-import Plot from 'react-plotly.js';
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { BarChart2, Globe2, LineChart, Code } from "lucide-react";
+
+const Plot = lazy(() => import("react-plotly.js"));
 
 type PersonaMode = "guided" | "expert";
 
@@ -89,6 +91,12 @@ const extractNumericValues = (rows: Record<string, any>[], key: string) =>
     .map((row) => (typeof row[key] === "number" && !Number.isNaN(row[key]) ? (row[key] as number) : null))
     .filter((value): value is number => value !== null);
 
+const PlotFallback = ({ label }: { label: string }) => (
+  <div className="flex h-full min-h-[260px] w-full items-center justify-center text-[0.65rem] uppercase tracking-[0.28em] text-subtle">
+    {label}
+  </div>
+);
+
 const DataVisualization = ({
   data,
   sqlQuery,
@@ -127,10 +135,29 @@ const DataVisualization = ({
 
   const workingData = filteredData;
 
-  const hasLocationData = useMemo(
-    () => workingData.length > 0 && "latitude" in workingData[0] && "longitude" in workingData[0],
+  const locationPoints = useMemo(
+    () =>
+      workingData
+        .map((row) => {
+          const rawLat = row.latitude;
+          const rawLon = row.longitude;
+          const lat = typeof rawLat === "number" ? rawLat : Number.parseFloat(rawLat);
+          const lon = typeof rawLon === "number" ? rawLon : Number.parseFloat(rawLon);
+
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            return {
+              lat,
+              lon,
+              floatId: row.float_id ?? "n/a",
+            };
+          }
+          return null;
+        })
+        .filter((point): point is { lat: number; lon: number; floatId: string | number } => point !== null),
     [workingData],
   );
+
+  const hasLocationData = locationPoints.length > 0;
   const hasTempProfileData = useMemo(
     () => workingData.length > 0 && "temperature" in workingData[0] && "pressure" in workingData[0],
     [workingData],
@@ -338,11 +365,23 @@ const DataVisualization = ({
       )}
 
       <Tabs value={activeTab} onValueChange={onTabChange} className="flex flex-1 min-h-0 flex-col gap-6">
-        <TabsList className="viewscreen-panel flex w-full shrink-0 flex-wrap gap-2 p-2">
-          <TabsTrigger value="analysis" className="whitespace-nowrap rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">📊 Analysis</TabsTrigger>
-          <TabsTrigger value="map" disabled={!hasLocationData} className="whitespace-nowrap rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm disabled:opacity-40 dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">🗺️ Ocean Map</TabsTrigger>
-          <TabsTrigger value="profiles" disabled={!hasTempProfileData && !hasSalProfileData} className="whitespace-nowrap rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm disabled:opacity-40 dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">📈 Profiles</TabsTrigger>
-          <TabsTrigger value="sql" className="whitespace-nowrap rounded-xl px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">🔍 SQL Query</TabsTrigger>
+  <TabsList className="mx-auto inline-flex h-auto shrink-0 flex-wrap items-center justify-center gap-2 bg-transparent p-0 text-inherit">
+          <TabsTrigger value="analysis" className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-center text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">
+            <span className="inline-flex h-4 w-4 items-center justify-center"><BarChart2 className="h-3.5 w-3.5" /></span>
+            Analysis
+          </TabsTrigger>
+          <TabsTrigger value="map" disabled={!hasLocationData} className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-center text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm disabled:opacity-40 dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">
+            <span className="inline-flex h-4 w-4 items-center justify-center"><Globe2 className="h-3.5 w-3.5" /></span>
+            Ocean Map
+          </TabsTrigger>
+          <TabsTrigger value="profiles" disabled={!hasTempProfileData && !hasSalProfileData} className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-center text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm disabled:opacity-40 dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">
+            <span className="inline-flex h-4 w-4 items-center justify-center"><LineChart className="h-3.5 w-3.5" /></span>
+            Profiles
+          </TabsTrigger>
+          <TabsTrigger value="sql" className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-center text-xs font-medium uppercase tracking-[0.28em] text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-white/10 dark:data-[state=active]:text-white">
+            <span className="inline-flex h-4 w-4 items-center justify-center"><Code className="h-3.5 w-3.5" /></span>
+            SQL Query
+          </TabsTrigger>
         </TabsList>
 
         {activeTab === "analysis" && (
@@ -354,23 +393,23 @@ const DataVisualization = ({
               </div>
             ) : (
               <div className="mt-4 flex-1 overflow-hidden">
-                <ScrollArea className="data-scroll h-full max-h-[60vh] rounded-2xl border border-white/40 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]">
+                <ScrollArea className="data-scroll h-full max-h-[60vh] rounded-2xl border border-white/40 bg-white/75 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-black/30">
                   <div className="min-w-full">
                     <table className="min-w-full divide-y divide-slate-200 text-sm leading-relaxed dark:divide-white/10">
-                      <thead className="sticky top-0 bg-white/90 text-xs uppercase tracking-[0.3em] text-slate-500 dark:bg-white/10 dark:text-slate-200">
+                      <thead className="sticky top-0 z-20 bg-white/95 text-[0.7rem] uppercase tracking-[0.28em] text-slate-500 shadow-[0_8px_16px_-12px_rgba(15,23,42,0.3)] backdrop-blur supports-[backdrop-filter]:bg-white/85 dark:bg-slate-950/85 dark:text-slate-200 dark:shadow-[0_8px_16px_-12px_rgba(2,6,23,0.65)]">
                         <tr>
                           {Object.keys(workingData[0]).map((key) => (
-                            <th key={key} className="px-4 py-4 text-left font-semibold">
+                            <th key={key} className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-100">
                               {key.replace(/_/g, " ")}
                             </th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100/70 dark:divide-white/5">
+                      <tbody className="divide-y divide-slate-100/70 bg-white/80 text-slate-700 dark:divide-white/5 dark:bg-white/[0.03] dark:text-slate-100">
                         {workingData.map((row, i) => (
-                          <tr key={i} className="odd:bg-white/95 even:bg-white/80 dark:odd:bg-white/[0.08] dark:even:bg-white/[0.04]">
+                          <tr key={i} className="transition-colors hover:bg-sky-50/80 dark:hover:bg-white/[0.08]">
                             {Object.values(row).map((val, j) => (
-                              <td key={j} className="px-4 py-4 font-medium text-slate-700 dark:text-slate-100">
+                              <td key={j} className="px-4 py-3 font-medium">
                                 {String(val ?? "—")}
                               </td>
                             ))}
@@ -387,35 +426,43 @@ const DataVisualization = ({
 
         {activeTab === "map" && (
           <TabsContent value="map" className="mt-2 flex flex-1 min-h-0 overflow-hidden rounded-[28px] border border-white/20 bg-transparent shadow-[0_35px_70px_-50px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:shadow-[0_45px_90px_-55px_rgba(2,6,23,0.85)]">
-            {!hasLocationData || workingData.length === 0 ? (
+            {!hasLocationData ? (
               <div className="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-300">
                 Location metadata isn’t available for the current selection.
               </div>
             ) : (
-              <Plot
-                data={[
-                  {
-                    type: "scattermapbox",
-                    lat: workingData.map((r) => r.latitude),
-                    lon: workingData.map((r) => r.longitude),
-                    text: workingData.map((r) => `Float: ${r.float_id}`),
-                    mode: "markers",
-                    marker: { color: "#2563eb", size: 10, opacity: 0.85 },
-                  },
-                ]}
-                layout={{
-                  mapbox: {
-                    style: "open-street-map",
-                    zoom: 1.6,
-                    center: { lat: workingData[0].latitude, lon: workingData[0].longitude },
-                  },
-                  margin: { r: 0, t: 0, b: 0, l: 0 },
-                  paper_bgcolor: "rgba(0,0,0,0)",
-                  plot_bgcolor: "rgba(0,0,0,0)",
-                }}
-                style={{ width: "100%", height: "100%" }}
-                useResizeHandler
-              />
+              <Suspense fallback={<PlotFallback label="Loading map" />}>
+                <Plot
+                  data={[
+                    {
+                      type: "scattergeo",
+                      lat: locationPoints.map((point) => point.lat),
+                      lon: locationPoints.map((point) => point.lon),
+                      text: locationPoints.map((point) => `Float: ${point.floatId}`),
+                      mode: "markers",
+                      marker: { color: "#2563eb", size: 10, opacity: 0.85 },
+                    },
+                  ]}
+                  layout={{
+                    geo: {
+                      scope: "world",
+                      showland: true,
+                      landcolor: "#f1f5f9",
+                      oceancolor: "#e2e8f0",
+                      lakecolor: "#e2e8f0",
+                      projection: { type: "natural earth" },
+                      lonaxis: { showgrid: true, gridcolor: "rgba(148, 163, 184, 0.3)", dtick: 30 },
+                      lataxis: { showgrid: true, gridcolor: "rgba(148, 163, 184, 0.3)", dtick: 15 },
+                    },
+                    margin: { r: 0, t: 10, b: 0, l: 0 },
+                    paper_bgcolor: "rgba(0,0,0,0)",
+                    plot_bgcolor: "rgba(0,0,0,0)",
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                  useResizeHandler
+                  config={{ displayModeBar: false, responsive: true }}
+                />
+              </Suspense>
             )}
           </TabsContent>
         )}
@@ -423,25 +470,27 @@ const DataVisualization = ({
         {activeTab === "profiles" && (
           <TabsContent value="profiles" className="mt-2 grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-auto rounded-[28px] border border-white/20 bg-white/85 p-6 shadow-[0_35px_70px_-50px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_45px_90px_-55px_rgba(2,6,23,0.85)] md:grid-cols-2">
             {hasTempProfileData ? (
-              <Plot
-                data={[
-                  {
-                    x: workingData.map((r) => r.temperature),
-                    y: workingData.map((r) => r.pressure),
-                    mode: "lines+markers",
-                    line: { color: "#0ea5e9", width: 3 },
-                  },
-                ]}
-                layout={{
-                  title: { text: "Temperature vs. Depth" },
-                  paper_bgcolor: "rgba(0,0,0,0)",
-                  plot_bgcolor: "rgba(0,0,0,0)",
-                  yaxis: { autorange: "reversed", title: { text: "Pressure (dbar)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
-                  xaxis: { title: { text: "Temperature (°C)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
-                }}
-                style={{ width: "100%", height: "360px" }}
-                useResizeHandler
-              />
+              <Suspense fallback={<PlotFallback label="Loading temperature profile" />}>
+                <Plot
+                  data={[
+                    {
+                      x: workingData.map((r) => r.temperature),
+                      y: workingData.map((r) => r.pressure),
+                      mode: "lines+markers",
+                      line: { color: "#0ea5e9", width: 3 },
+                    },
+                  ]}
+                  layout={{
+                    title: { text: "Temperature vs. Depth" },
+                    paper_bgcolor: "rgba(0,0,0,0)",
+                    plot_bgcolor: "rgba(0,0,0,0)",
+                    yaxis: { autorange: "reversed", title: { text: "Pressure (dbar)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
+                    xaxis: { title: { text: "Temperature (°C)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
+                  }}
+                  style={{ width: "100%", height: "360px" }}
+                  useResizeHandler
+                />
+              </Suspense>
             ) : (
               <div className="flex items-center justify-center rounded-2xl border border-dashed border-white/40 p-6 text-sm text-slate-500 dark:border-white/15 dark:text-slate-300">
                 Temperature profiles unavailable for this selection.
@@ -449,25 +498,27 @@ const DataVisualization = ({
             )}
 
             {hasSalProfileData ? (
-              <Plot
-                data={[
-                  {
-                    x: workingData.map((r) => r.salinity),
-                    y: workingData.map((r) => r.pressure),
-                    mode: "lines+markers",
-                    line: { color: "#6366f1", width: 3 },
-                  },
-                ]}
-                layout={{
-                  title: { text: "Salinity vs. Depth" },
-                  paper_bgcolor: "rgba(0,0,0,0)",
-                  plot_bgcolor: "rgba(0,0,0,0)",
-                  yaxis: { autorange: "reversed", title: { text: "Pressure (dbar)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
-                  xaxis: { title: { text: "Salinity (PSU)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
-                }}
-                style={{ width: "100%", height: "360px" }}
-                useResizeHandler
-              />
+              <Suspense fallback={<PlotFallback label="Loading salinity profile" />}>
+                <Plot
+                  data={[
+                    {
+                      x: workingData.map((r) => r.salinity),
+                      y: workingData.map((r) => r.pressure),
+                      mode: "lines+markers",
+                      line: { color: "#6366f1", width: 3 },
+                    },
+                  ]}
+                  layout={{
+                    title: { text: "Salinity vs. Depth" },
+                    paper_bgcolor: "rgba(0,0,0,0)",
+                    plot_bgcolor: "rgba(0,0,0,0)",
+                    yaxis: { autorange: "reversed", title: { text: "Pressure (dbar)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
+                    xaxis: { title: { text: "Salinity (PSU)" }, gridcolor: "rgba(148, 163, 184, 0.3)" },
+                  }}
+                  style={{ width: "100%", height: "360px" }}
+                  useResizeHandler
+                />
+              </Suspense>
             ) : (
               <div className="flex items-center justify-center rounded-2xl border border-dashed border-white/40 p-6 text-sm text-slate-500 dark:border-white/15 dark:text-slate-300">
                 Salinity profiles unavailable for this selection.

@@ -8,6 +8,7 @@ psycopg2-binary
 # AI Squad Libraries
 langchain
 langchain-community
+langchain-huggingface
 langchain-google-genai
 sentence-transformers
 google-generativeai

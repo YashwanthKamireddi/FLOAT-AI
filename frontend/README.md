@@ -60,6 +60,10 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Developer experience tips
+
+- **React component inspection**: run `npm run dev:inspect` in a separate terminal while the Vite dev server is active. This launches the standalone React DevTools so you can inspect component state and props without relying on a browser extension.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/a9d19ea8-5a5c-4acb-b6d5-bfff9daaf792) and click on Share -> Publish.

@@ -25,11 +25,19 @@ const resolveApiUrl = () => {
 const API_URL = resolveApiUrl();
 
 // This interface defines the "API Contract".
+export interface BackendAssistantMessage {
+  role: string;
+  content: string | { text?: string } | null;
+  type?: string | null;
+  title?: string | null;
+  metadata?: Record<string, any>;
+}
+
 export interface AIResponse {
   sql_query: string | null;
-  // CRITICAL CHANGE: The data from the backend is now a proper array of objects
-  // or a simple string for conversational replies.
   result_data: Record<string, any>[] | string | null;
+  messages?: BackendAssistantMessage[];
+  metadata?: Record<string, any>;
   error: string | null;
 }
 
@@ -61,6 +69,8 @@ export const askAI = async (question: string): Promise<AIResponse> => {
     return {
       sql_query: "Error connecting to backend.",
       result_data: null,
+      messages: undefined,
+      metadata: undefined,
       error: "Could not connect to the AI server. Is it running?",
     };
   }

@@ -1,7 +1,10 @@
 # This script creates the vector database using FAISS.
 # It imports its knowledge from the 'curated_knowledge.py' file.
 
-from langchain_community.embeddings import HuggingFaceEmbeddings
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings  # type: ignore
+except ImportError:  # pragma: no cover - fallback for legacy environments
+    from langchain_community.embeddings import HuggingFaceEmbeddings  # type: ignore
 from langchain_community.vectorstores import FAISS
 
 # --- 1. Import the Curated Knowledge ---
@@ -34,7 +37,7 @@ try:
     # This saves the index to disk so we can load it later without rebuilding it.
     # It will create a folder named 'faiss_index' inside the 'ai_core' directory.
     vector_store.save_local("ai_core/faiss_index")
-    
+
     print(f"\n✅ SUCCESS: Successfully saved FAISS index to the 'ai_core/faiss_index' folder!")
     print("\n--- AI Knowledge Base Created ---")
 

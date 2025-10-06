@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:inspect": "react-devtools"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.11",
@@ -52,6 +53,7 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "react-devtools": "^4.28.5"
   }
 }

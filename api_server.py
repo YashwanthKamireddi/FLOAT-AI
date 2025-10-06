@@ -2,6 +2,7 @@
 # This is the "engine" that our frontend will talk to.
 
 import os
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -41,16 +42,31 @@ app.add_middleware(
 class QueryRequest(BaseModel):
     question: str
 
+
+class AssistantMessage(BaseModel):
+    role: str
+    content: str
+    type: Optional[str] = None
+    title: Optional[str] = None
+
+
+class QueryResponse(BaseModel):
+    sql_query: Optional[str]
+    result_data: Any
+    messages: List[AssistantMessage]
+    metadata: Dict[str, Any]
+    error: Optional[str]
+
 # --- API Endpoint ---
-@app.post("/api/ask")
-async def ask_question(request: QueryRequest):
+@app.post("/api/ask", response_model=QueryResponse)
+async def ask_question(request: QueryRequest) -> QueryResponse:
     """
     This is the main endpoint for the application. It receives a question,
     runs it through the AI pipeline, and returns the result.
     """
     print(f"Received question via API: {request.question}")
     response_payload = run_ai_pipeline(request.question)
-    return response_payload
+    return QueryResponse.model_validate(response_payload)
 
 # --- Run the server ---
 # This block allows you to run the server directly for testing.

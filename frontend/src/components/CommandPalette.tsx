@@ -23,6 +23,7 @@ import {
   Droplets,
   Activity,
   Anchor,
+  Compass,
 } from "lucide-react";
 
 type PersonaMode = "guided" | "expert";
@@ -43,6 +44,7 @@ interface CommandPaletteProps {
   recentQueries: string[];
   filters: PaletteFilters;
   activeTab: string;
+  quickQueries: Array<{ label: string; prompt: string }>;
 }
 
 const focusMetricOptions: Array<{ value: FocusMetric; label: string; icon: ComponentType<any> }> = [
@@ -68,6 +70,7 @@ const CommandPalette = ({
   recentQueries,
   filters,
   activeTab,
+  quickQueries,
 }: CommandPaletteProps) => {
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -115,6 +118,20 @@ const CommandPalette = ({
             <span>Clear filters</span>
           </CommandItem>
         </CommandGroup>
+
+        {quickQueries.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Quick actions">
+              {quickQueries.map(({ label, prompt }) => (
+                <CommandItem key={`${label}-${prompt}`} onSelect={() => onAction("prefill-query", prompt)}>
+                  <Compass className="mr-2 h-4 w-4" />
+                  <span className="truncate text-sm">{label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
 
         {recentQueries.length > 0 && (
           <>

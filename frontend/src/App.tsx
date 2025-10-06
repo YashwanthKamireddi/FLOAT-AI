@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Compass, CalendarDays, Database, Command } from "lucide-react";
+import { Compass, CalendarDays, Database } from "lucide-react";
 import ChatInterface from "@/components/ChatInterface";
 import DataVisualization from "@/components/DataVisualization";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { askAI } from "@/services/api";
 import CommandPalette from "@/components/CommandPalette";
 import { Button } from "@/components/ui/button";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export interface AppData {
   data: Record<string, any>[];
@@ -43,11 +44,55 @@ const GUIDED_EXAMPLES = [
   "Explain the recent trends in mixed layer depth near 45°N, 30°W.",
 ];
 
+type BackendStatus = "operational" | "degraded" | "offline";
+
+const BACKEND_STATUS_MAP: Record<BackendStatus, { label: string; description: string; indicatorClass: string; pillClass: string }> = {
+  operational: {
+    label: "Operational",
+    description: "All systems nominal.",
+    indicatorClass: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]",
+    pillClass: "bg-white/60 dark:bg-white/10",
+  },
+  degraded: {
+    label: "Degraded",
+    description: "Serving cached insights while the backend stabilizes.",
+    indicatorClass: "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.45)]",
+    pillClass: "bg-amber-50/90 dark:bg-amber-500/10",
+  },
+  offline: {
+    label: "Offline",
+    description: "Backend unreachable — verify the Python API server.",
+    indicatorClass: "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]",
+    pillClass: "bg-rose-50/90 dark:bg-rose-500/10",
+  },
+};
+
+const WELCOME_CACHE_KEY = "floatchat::welcome-cache::v1";
+
 const createDataSynopsis = (data: Record<string, any>[]): DataSynopsis | null => {
   if (!data.length) return null;
 
   const columns = Object.keys(data[0]);
-  const floatIds = Array.from(new Set(data.map((row) => row.float_id).filter(Boolean)));
+  const floatIds = Array.from(
+    new Set(
+      data
+        .map((row) => {
+          const raw = row.float_id ?? row.float ?? row.id;
+          if (raw === undefined || raw === null) return null;
+          if (typeof raw === "string") {
+            const trimmed = raw.trim();
+            return trimmed.length ? trimmed : null;
+          }
+          try {
+            return String(raw);
+          } catch (error) {
+            console.warn("createDataSynopsis: unable to normalize float identifier", error, { raw });
+            return null;
+          }
+        })
+        .filter((value): value is string => Boolean(value))
+    )
+  );
 
   const dateCandidates = [
     "profile_date",
@@ -132,22 +177,100 @@ function App() {
   const [expertFilters, setExpertFilters] = useState<ExpertFilters>({ focusMetric: "temperature" });
   const hasAutoOpenedPaletteRef = useRef(false);
   const [palettePrefill, setPalettePrefill] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>("operational");
+  const [backendStatusDetail, setBackendStatusDetail] = useState<string>(BACKEND_STATUS_MAP.operational.description);
+  const [chatInstanceKey, setChatInstanceKey] = useState(0);
+
+  const updateBackendStatus = useCallback((status: BackendStatus, detail?: string) => {
+    setBackendStatus(status);
+    const baseline = BACKEND_STATUS_MAP[status].description;
+    setBackendStatusDetail(detail && detail.trim() ? detail : baseline);
+  }, []);
+
+  const persistWelcomeData = useCallback((payload: AppData) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage?.setItem(WELCOME_CACHE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn("FloatChat: unable to persist welcome dataset", error);
+    }
+  }, []);
+
+  const loadCachedWelcomeData = useCallback((): AppData | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage?.getItem(WELCOME_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.data) && typeof parsed.sqlQuery === "string") {
+        return { data: parsed.data, sqlQuery: parsed.sqlQuery };
+      }
+    } catch (error) {
+      console.warn("FloatChat: unable to load cached welcome dataset", error);
+    }
+    return null;
+  }, []);
+
+  const fetchInitialData = useCallback(async () => {
+    const initialQuestion = "Show me the location of 100 recent floats.";
+    console.log("Fetching initial data for welcome map...");
+
+    updateBackendStatus("operational", "Requesting welcome telemetry...");
+    setIsLoading(true);
+
+    const maxAttempts = 3;
+    let success = false;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const response = await askAI(initialQuestion);
+
+        if (response && !response.error && Array.isArray(response.result_data) && response.sql_query) {
+          const payload: AppData = { data: response.result_data, sqlQuery: response.sql_query };
+          setAppData(payload);
+          setDataSynopsis(createDataSynopsis(response.result_data));
+          persistWelcomeData(payload);
+          updateBackendStatus("operational", "Live telemetry synced.");
+          success = true;
+          break;
+        }
+
+        if (response?.error) {
+          console.warn("FloatChat: welcome fetch error", response.error);
+        }
+      } catch (error) {
+        console.warn("FloatChat: welcome fetch attempt failed", error);
+      }
+
+      if (success) {
+        break;
+      }
+
+      if (attempt < maxAttempts - 1) {
+        const backoff = 400 * (attempt + 1) * (attempt + 1);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+    }
+
+    if (!success) {
+      const cached = loadCachedWelcomeData();
+      if (cached) {
+        setAppData(cached);
+        setDataSynopsis(createDataSynopsis(cached.data));
+        updateBackendStatus("degraded", "Loaded cached telemetry while the backend recovers.");
+      } else {
+        setAppData({ data: [], sqlQuery: "" });
+        setDataSynopsis(null);
+        updateBackendStatus("offline", "Initial telemetry failed. Backend unreachable.");
+      }
+    }
+
+    setIsLoading(false);
+  }, [loadCachedWelcomeData, persistWelcomeData, updateBackendStatus]);
 
   useEffect(() => {
-    const fetchInitialData = async () => {
-      const initialQuestion = "Show me the location of 100 recent floats.";
-      console.log("Fetching initial data for welcome map...");
-      const response = await askAI(initialQuestion);
-
-      if (response && !response.error && Array.isArray(response.result_data) && response.sql_query) {
-        setAppData({ data: response.result_data, sqlQuery: response.sql_query });
-        setDataSynopsis(createDataSynopsis(response.result_data));
-      }
-      setIsLoading(false);
-    };
-
     fetchInitialData();
-  }, []);
+  }, [fetchInitialData]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -206,6 +329,15 @@ function App() {
         : "—",
     };
   }, [appData.data]);
+
+  const missionStatusDescriptor = useMemo(() => {
+    const base = BACKEND_STATUS_MAP[backendStatus];
+    const detail = backendStatusDetail && backendStatusDetail.trim() ? backendStatusDetail : base.description;
+    return {
+      ...base,
+      description: detail,
+    };
+  }, [backendStatus, backendStatusDetail]);
 
   const handleDataReceived = (data: Record<string, any>[], sqlQuery: string) => {
     setAppData({ data, sqlQuery });
@@ -293,6 +425,74 @@ function App() {
     setPalettePrefill(null);
   }, []);
 
+  const handleBackendStatusChange = useCallback((status: BackendStatus, detail?: string) => {
+    updateBackendStatus(status, detail);
+  }, [updateBackendStatus]);
+
+  const quickQueries = useMemo(() => {
+    const suggestions: { label: string; prompt: string }[] = [];
+
+    const floatIds = Array.from(
+      new Set(
+        appData.data
+          .map((row) => row.float_id ?? row.float ?? row.id)
+          .filter((value) => value !== undefined && value !== null)
+          .map((value) => {
+            try {
+              return String(value).trim();
+            } catch (error) {
+              console.warn("FloatChat: unable to normalize float id for quick queries", error, { value });
+              return "";
+            }
+          })
+          .filter((value) => value.length > 0)
+      )
+    ).slice(0, 6);
+
+    floatIds.forEach((floatId) => {
+      suggestions.push({
+        label: `Latest profile for float ${floatId}`,
+        prompt: `Show me the most recent profile for float ${floatId}.`,
+      });
+    });
+
+    if (dataSynopsis?.dateWindow?.start && dataSynopsis.dateWindow.end) {
+      const start = new Date(dataSynopsis.dateWindow.start);
+      const end = new Date(dataSynopsis.dateWindow.end);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        const rangeLabel = `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
+        suggestions.push({
+          label: `Summarize metrics for ${rangeLabel}`,
+          prompt: `Summarize the key ocean metrics for floats observed between ${rangeLabel}.`,
+        });
+      }
+    }
+
+    GUIDED_EXAMPLES.slice(0, 3).forEach((example) => {
+      if (!suggestions.some((suggestion) => suggestion.prompt === example)) {
+        suggestions.push({ label: example, prompt: example });
+      }
+    });
+
+    return suggestions.slice(0, 10);
+  }, [appData.data, dataSynopsis]);
+
+  const handleChatHardReset = useCallback(() => {
+    setChatInstanceKey((prev) => prev + 1);
+    setAppData({ data: [], sqlQuery: "" });
+    setDataSynopsis(null);
+    setActiveTab("analysis");
+    setExpertFilters({ focusMetric: "temperature" });
+    setRecentQueries([]);
+    setPalettePrefill(null);
+    setComplexityScore(0);
+    setMode("guided");
+    hasAutoOpenedPaletteRef.current = false;
+    setShowCommandPalette(false);
+    updateBackendStatus("operational", "Interface reset. Requesting fresh telemetry...");
+    fetchInitialData();
+  }, [fetchInitialData, updateBackendStatus]);
+
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
       <div className="relative min-h-screen w-full overflow-hidden bg-control-room text-slate-900 transition-colors duration-500 dark:text-slate-100">
@@ -302,38 +502,41 @@ function App() {
         <div className="pointer-events-none absolute -bottom-64 right-[-20%] h-[520px] w-[520px] rounded-full gradient-ring blur-3xl opacity-30" />
 
         <main className="relative z-10 flex min-h-screen flex-col">
-          <header className="w-full px-6 pt-14 pb-10 lg:px-10">
-            <div className="flex flex-col gap-[32px] lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-[24px]">
-                <div className="inline-flex items-center gap-4 rounded-full bg-white/70 px-6 py-2 shadow-sm backdrop-blur-md dark:bg-white/10">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]" />
-                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.5em] text-slate-600 dark:text-slate-200">Mission Status</span>
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-200">Operational</span>
+          <header className="w-full px-6 py-6 lg:px-10 lg:py-6">
+            <div className="flex flex-wrap items-start justify-between gap-6 lg:items-center">
+              <div className="space-y-3">
+                <div className={`inline-flex items-center gap-3 rounded-full px-4 py-1.5 shadow-sm backdrop-blur-md ${missionStatusDescriptor.pillClass}`}>
+                  <span className={`h-2 w-2 rounded-full ${missionStatusDescriptor.indicatorClass}`} />
+                  <span className="text-[0.6rem] font-semibold uppercase tracking-[0.45em] text-slate-600 dark:text-slate-200">Mission Status</span>
+                  <span className="text-[0.625rem] font-medium text-slate-600 dark:text-slate-200">{missionStatusDescriptor.label}</span>
                 </div>
-                <div className="space-y-2">
-                  <h1 className="text-4xl font-semibold leading-tight md:text-5xl">FloatChat Command Deck</h1>
-                  <p className="max-w-2xl text-base text-subtle md:text-lg">
-                    A focused workspace for guiding autonomous ocean missions. Question the ARGO archive, direct the analysis, and watch the main viewscreen respond in real time.
+                <p className="text-[0.65rem] uppercase tracking-[0.24em] text-subtle">
+                  {missionStatusDescriptor.description}
+                </p>
+                <div className="space-y-1.5">
+                  <h1 className="text-3xl font-semibold leading-tight md:text-4xl">FloatChat Command Deck</h1>
+                  <p className="max-w-xl text-sm text-subtle md:text-base">
+                    Guide autonomous ocean missions, query the ARGO archive, and direct the analysis as the viewscreen responds in real time.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 self-start rounded-full bg-white/70 px-4 py-2 shadow-sm backdrop-blur lg:self-auto dark:bg-white/10">
+              <div className="flex items-center gap-3 rounded-full bg-white/60 px-4 py-1.5 shadow-sm backdrop-blur dark:bg-white/10">
                 <ThemeToggle />
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   onClick={() => setShowCommandPalette(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border-white/40 bg-white/85 px-3 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-slate-200"
+                  className="inline-flex items-center rounded-xl border-white/40 bg-white/80 px-4 py-2 text-[0.6rem] font-semibold uppercase tracking-[0.28em] text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-slate-200"
+                  aria-label="Open command palette"
                 >
-                  <Command className="h-3 w-3" />
-                  Open Palette ⌘K
+                  Command Palette
                 </Button>
               </div>
             </div>
 
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <StatCard
                 icon={Database}
                 label="Records processed"
@@ -360,13 +563,17 @@ function App() {
               <div className="mission-panel flex h-full min-h-0 flex-col p-6">
                 <div className="pointer-events-none absolute inset-0 rounded-[32px] border-y border-white/10 dark:border-white/5" />
                 <div className="relative z-10 flex h-full flex-col">
-                  <ChatInterface
-                    onDataReceived={handleDataReceived}
-                    onComplexitySignal={handleComplexitySignal}
-                    dataSummary={dataSynopsis}
-                    palettePrefill={palettePrefill}
-                    onPrefillConsumed={handlePrefillConsumed}
-                  />
+                  <ErrorBoundary onReset={handleChatHardReset}>
+                    <ChatInterface
+                      key={chatInstanceKey}
+                      onDataReceived={handleDataReceived}
+                      onComplexitySignal={handleComplexitySignal}
+                      dataSummary={dataSynopsis}
+                      palettePrefill={palettePrefill}
+                      onPrefillConsumed={handlePrefillConsumed}
+                      onBackendStatusChange={handleBackendStatusChange}
+                    />
+                  </ErrorBoundary>
                 </div>
               </div>
 
@@ -401,6 +608,7 @@ function App() {
           recentQueries={recentQueries}
           filters={expertFilters}
           activeTab={activeTab}
+          quickQueries={quickQueries}
         />
       </div>
     </ThemeProvider>
@@ -415,17 +623,17 @@ interface StatCardProps {
 }
 
 const StatCard = ({ icon: Icon, label, value, helper }: StatCardProps) => (
-  <div className="glass-panel relative flex items-center gap-6 rounded-2xl border border-white/30 px-6 py-4">
-    <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-gradient-ocean text-white shadow-lg shadow-sky-500/30">
-      <Icon className="h-6 w-6" />
+  <div className="glass-panel relative flex items-center gap-4 rounded-2xl border border-white/30 px-4 py-3">
+    <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gradient-ocean text-white shadow-lg shadow-sky-500/30">
+      <Icon className="h-5 w-5" />
       <div className="pointer-events-none absolute inset-0 bg-white/35 mix-blend-overlay" />
     </div>
     <div>
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-300">
         {label}
       </p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-300">{helper}</p>
+      <p className="mt-0.5 text-xl font-semibold text-slate-900 dark:text-white">{value}</p>
+      <p className="text-[0.65rem] text-slate-500 dark:text-slate-300">{helper}</p>
     </div>
   </div>
 );
