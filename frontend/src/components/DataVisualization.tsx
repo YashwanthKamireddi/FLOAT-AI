@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CodeBlock, atomOneLight } from 'react-code-blocks';
+import CodeSnippet from "./CodeSnippet";
 import { lazy, Suspense, useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { BarChart2, Globe2, LineChart, Code } from "lucide-react";
@@ -531,20 +531,7 @@ const DataVisualization = ({
           <TabsContent value="sql" className="mt-2 flex flex-1 min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/20 bg-white/85 p-6 shadow-[0_35px_70px_-50px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_45px_90px_-55px_rgba(2,6,23,0.85)]">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Generated SQL query</h3>
             <div className="mt-4 flex-1 overflow-auto rounded-2xl border border-slate-800/60 bg-slate-900/90 text-slate-100 shadow-inner">
-              <CodeBlock
-                text={sqlQuery || "No query generated."}
-                language="sql"
-                theme={atomOneLight}
-                showLineNumbers={false}
-                customStyle={{
-                  backgroundColor: "transparent",
-                  fontSize: "0.9rem",
-                  height: "100%",
-                  width: "100%",
-                  overflow: "auto",
-                  color: "inherit",
-                }}
-              />
+              <CodeSnippet code={sqlQuery || "No query generated."} language="sql" className="bg-transparent text-[0.9rem]" />
             </div>
           </TabsContent>
         )}

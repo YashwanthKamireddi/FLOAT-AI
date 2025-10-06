@@ -1,5 +1,5 @@
 // This is the main orchestrator for your entire frontend application.
-// It replaces the functionality of the original FloatChatDashboard.tsx.
+// It replaces the functionality of the original FloatAIDashboard.tsx.
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -67,7 +67,7 @@ const BACKEND_STATUS_MAP: Record<BackendStatus, { label: string; description: st
   },
 };
 
-const WELCOME_CACHE_KEY = "floatchat::welcome-cache::v1";
+const WELCOME_CACHE_KEY = "floatai::welcome-cache::v1";
 
 const createDataSynopsis = (data: Record<string, any>[]): DataSynopsis | null => {
   if (!data.length) return null;
@@ -192,7 +192,7 @@ function App() {
     try {
       window.localStorage?.setItem(WELCOME_CACHE_KEY, JSON.stringify(payload));
     } catch (error) {
-      console.warn("FloatChat: unable to persist welcome dataset", error);
+  console.warn("FloatAI: unable to persist welcome dataset", error);
     }
   }, []);
 
@@ -206,7 +206,7 @@ function App() {
         return { data: parsed.data, sqlQuery: parsed.sqlQuery };
       }
     } catch (error) {
-      console.warn("FloatChat: unable to load cached welcome dataset", error);
+  console.warn("FloatAI: unable to load cached welcome dataset", error);
     }
     return null;
   }, []);
@@ -236,10 +236,10 @@ function App() {
         }
 
         if (response?.error) {
-          console.warn("FloatChat: welcome fetch error", response.error);
+          console.warn("FloatAI: welcome fetch error", response.error);
         }
       } catch (error) {
-        console.warn("FloatChat: welcome fetch attempt failed", error);
+  console.warn("FloatAI: welcome fetch attempt failed", error);
       }
 
       if (success) {
@@ -441,7 +441,7 @@ function App() {
             try {
               return String(value).trim();
             } catch (error) {
-              console.warn("FloatChat: unable to normalize float id for quick queries", error, { value });
+              console.warn("FloatAI: unable to normalize float id for quick queries", error, { value });
               return "";
             }
           })
@@ -514,7 +514,7 @@ function App() {
                   {missionStatusDescriptor.description}
                 </p>
                 <div className="space-y-1.5">
-                  <h1 className="text-3xl font-semibold leading-tight md:text-4xl">FloatChat Command Deck</h1>
+                  <h1 className="text-3xl font-semibold leading-tight md:text-4xl">FloatAI Command Deck</h1>
                   <p className="max-w-xl text-sm text-subtle md:text-base">
                     Guide autonomous ocean missions, query the ARGO archive, and direct the analysis as the viewscreen responds in real time.
                   </p>

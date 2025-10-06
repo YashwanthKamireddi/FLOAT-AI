@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter } from 'recharts';
 import { BarChart3, Play, Pause, Download, Thermometer, Droplets, Wind, RefreshCw } from 'lucide-react';
-import { floatChatAPI, ArgoProfile, DataFilters } from '@/services/api';
+import { floatAIAPI, ArgoProfile, DataFilters } from '@/services/api';
 
 interface StreamingDataVisualizationProps {
   filters?: DataFilters;
@@ -31,9 +31,9 @@ const StreamingDataVisualization = ({ filters, highlightedFloats = [] }: Streami
     setLoading(true);
     try {
       const [profile, timeSeries, quality] = await Promise.all([
-        floatChatAPI.getFloatProfile(selectedFloat, selectedVariable),
-        floatChatAPI.getTimeSeriesData(selectedFloat, selectedVariable),
-        floatChatAPI.getDataQuality(selectedFloat)
+  floatAIAPI.getFloatProfile(selectedFloat, selectedVariable),
+  floatAIAPI.getTimeSeriesData(selectedFloat, selectedVariable),
+  floatAIAPI.getDataQuality(selectedFloat)
       ]);
 
       setProfileData(profile);

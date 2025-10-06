@@ -25,7 +25,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("FloatChat UI error boundary caught an error", error, info);
+  console.error("FloatAI UI error boundary caught an error", error, info);
   }
 
   private handleReset = () => {

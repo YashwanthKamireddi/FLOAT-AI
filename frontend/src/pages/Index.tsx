@@ -1,4 +1,4 @@
-import FloatChatDashboard from '@/components/FloatChatDashboard';
+import FloatAIDashboard from '@/components/FloatAIDashboard';
 
 const Index = () => {
   console.log('Index component rendering...');
@@ -9,7 +9,7 @@ const Index = () => {
   if (testMode) {
     return (
       <div className="p-8 min-h-screen bg-blue-50">
-        <h1 className="text-4xl font-bold text-blue-600 mb-4">FloatChat Dashboard</h1>
+  <h1 className="text-4xl font-bold text-blue-600 mb-4">FloatAI Dashboard</h1>
         <p className="text-lg mb-8">Testing basic rendering...</p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -25,9 +25,9 @@ const Index = () => {
   }
 
   try {
-    return <FloatChatDashboard />;
+  return <FloatAIDashboard />;
   } catch (error) {
-    console.error('Error rendering FloatChatDashboard:', error);
+  console.error('Error rendering FloatAIDashboard:', error);
     return (
       <div className="p-8 min-h-screen bg-red-50">
         <h1 className="text-4xl font-bold text-red-600 mb-4">Dashboard Error</h1>

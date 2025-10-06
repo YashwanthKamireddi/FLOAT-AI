@@ -18,8 +18,8 @@ load_dotenv()
 
 # Create the FastAPI app instance
 app = FastAPI(
-    title="FloatChat AI Core",
-    description="API for the RAG-based Text-to-SQL pipeline for ARGO data.",
+    title="FloatAI Core",
+    description="API for the FloatAI RAG-based Text-to-SQL pipeline for ARGO data.",
     version="1.0.0"
 )
 

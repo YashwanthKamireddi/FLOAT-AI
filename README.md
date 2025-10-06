@@ -1,10 +1,10 @@
-# FloatChat
+# FloatAI
 
-Production-ready instructions for running the FloatChat stack locally.
+Production-ready instructions for running the FloatAI stack locally.
 
-## What does FloatChat do?
+## What does FloatAI do?
 
-FloatChat is a mission console for ARGO ocean intelligence:
+FloatAI is a mission console for ARGO ocean intelligence:
 
 - **Chat-to-Insight** – Scientists type plain-language questions; the backend orchestrates Gemini + SQL generation to surface float records, profiles, statistics, and maps.
 - **Guided Analytics** – The UI narrates findings, summarizes trends, and pairs every chart with short, readable takeaways so teams can brief stakeholders quickly.

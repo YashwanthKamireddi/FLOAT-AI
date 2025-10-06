@@ -203,7 +203,7 @@ def _build_conversational_messages(
 
 
 def _diagnose_exception(exc: Exception) -> Dict[str, Any]:
-    message = "FloatChat hit an unexpected error while processing your request."
+    message = "FloatAI hit an unexpected error while processing your request."
     lowered = str(exc).lower()
 
     metadata: Dict[str, Any] = {
@@ -240,7 +240,7 @@ def _diagnose_exception(exc: Exception) -> Dict[str, Any]:
 
 
 def _initialise_components() -> Dict[str, Any]:
-    logger.info("--- 🧠 Initializing FloatChat RAG AI Core (first run)... ---")
+    logger.info("--- 🧠 Initializing FloatAI RAG AI Core (first run)... ---")
 
     os.environ["GOOGLE_API_KEY"] = _get_google_api_key()
 
@@ -293,7 +293,7 @@ def _initialise_components() -> Dict[str, Any]:
     )
 
     convo_prompt_template = (
-        "You are a friendly and helpful oceanographic research assistant named FloatChat. "
+        "You are a friendly and helpful oceanographic research assistant named FloatAI. "
         "Answer the user's question concisely. If you don't know the answer, say so. Question: {question}"
     )
     convo_prompt = PromptTemplate.from_template(convo_prompt_template)

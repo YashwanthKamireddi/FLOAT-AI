@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Map, MapPin, Activity, Thermometer, Droplets, RefreshCw } from 'lucide-react';
-import { floatChatAPI, ArgoFloat, DataFilters } from '@/services/api';
+import { floatAIAPI, ArgoFloat, DataFilters } from '@/services/api';
 
 interface RealTimeOceanMapProps {
   filters?: DataFilters;
@@ -18,7 +18,7 @@ const RealTimeOceanMap = ({ filters, highlightedFloats = [] }: RealTimeOceanMapP
   const loadFloats = async () => {
     setLoading(true);
     try {
-      const data = await floatChatAPI.getArgoFloats(filters);
+  const data = await floatAIAPI.getArgoFloats(filters);
       setFloats(data);
     } catch (error) {
       console.error('Failed to load floats:', error);

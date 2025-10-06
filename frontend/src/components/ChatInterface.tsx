@@ -46,7 +46,7 @@ interface ChatInterfaceProps {
 
 const buildWelcomeMessage = (): Message => ({
   id: `welcome-${Date.now()}`,
-  content: `Welcome to FloatChat — your ARGO mission copilot.
+  content: `Welcome to FloatAI — your ARGO mission copilot.
 Ask a question to surface floats, profiles, or trends when you're ready.`,
   sender: 'assistant',
   timestamp: new Date(),
@@ -517,7 +517,7 @@ Let me know if you’d like to dive into any detail further or filter this view.
               <Bot className="h-4 w-4" />
             </div>
             <div className="min-w-[180px]">
-              <h3 className="text-sm font-semibold leading-tight">FloatChat</h3>
+              <h3 className="text-sm font-semibold leading-tight">FloatAI</h3>
               <p className="text-[0.7rem] text-muted-foreground">{sessionTagline}</p>
             </div>
           </div>

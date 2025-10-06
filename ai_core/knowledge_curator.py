@@ -50,10 +50,10 @@ try:
 
     # Add one final, crucial negative constraint.
     final_knowledge.append("The database does not contain Quality Control (QC) flags or Bio-Geo-Chemical (BGC) parameters like oxygen.")
-    
+
     # Save the final, clean list to a new file
     with open(output_knowledge_file, 'w') as f:
-        f.write("This is the curated knowledge base for the FloatChat AI. Copy the list below into 'create_vector_db.py'.\n\n")
+        f.write("This is the curated knowledge base for the FloatAI assistant. Copy the list below into 'create_vector_db.py'.\n\n")
         f.write("knowledge = [\n")
         for i, sentence in enumerate(final_knowledge):
             f.write(f'    "{sentence}",\n')

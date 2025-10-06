@@ -31,7 +31,7 @@ flagged_files = [] # We'll store any bad files here
 
 for file_path in nc_files_to_check:
     filename = os.path.basename(file_path)
-    
+
     try:
         dataset = xr.open_dataset(file_path)
         argo_df = dataset.to_dataframe().reset_index()
@@ -43,14 +43,14 @@ for file_path in nc_files_to_check:
             'salinity': ['psal_adjusted', 'PSAL_ADJUSTED'],
             'pressure': ['pres_adjusted', 'PRES_ADJUSTED']
         }
-        
+
         # We only need to find the core measurement columns for this check
         for clean_name, ugly_names in potential_names.items():
             for ugly_name in ugly_names:
                 if ugly_name in argo_df.columns:
                     column_map[ugly_name] = clean_name
                     break
-        
+
         if len(column_map) != 3:
             raise ValueError("File is missing one or more core measurement variables (temp, psal, pres).")
 
@@ -90,8 +90,7 @@ print("\n--- Checker Finished ---")
 
 ### What to Do Now
 
-#1.  **Save this code** as a new file named `data_quality_checker.py` in your `FLOATCHAT` folder.
+#1.  **Save this code** as a new file named `data_quality_checker.py` in your `FLOATAI` folder.
 #2.  **Run it from your terminal:**
 #    ```bash
 #    python data_quality_checker.py
-    
