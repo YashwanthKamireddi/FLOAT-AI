@@ -8,6 +8,26 @@ Conversational ocean intelligence for the ARGO fleet. FloatAI turns plain-Englis
 - Summarize fleet stats and QA completeness with graceful fallbacks if the DB is offline.
 - Review the exact SQL run for every data answer.
 
+## Run it locally
+
+```bash
+# Backend — FastAPI on :8000
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env    # set GOOGLE_API_KEY and DATABASE_URL (or DB_* creds)
+.venv/bin/python api_server.py
+
+# Frontend — Vite dev server on :5173 (another terminal)
+cd frontend && npm install && npm run dev
+```
+
+Load ARGO NetCDF data into Postgres with the ETL pipeline:
+
+```bash
+.venv/bin/python data_pipeline/build_database.py --help
+```
+
+Deploy configs are included for Vercel (`vercel.json`, frontend), Render (`render.yaml`, API), and Docker (`Dockerfile`).
+
 ## Architecture at a glance
 - **Frontend**: Vite + React + TypeScript, Leaflet for the ocean map, Plotly for profiles/time series, polished UI with command palette and quick prompts.
 - **API**: FastAPI serving `/api/ask` for AI responses plus operational routes for stats, floats, profiles, trajectories, quality, and time-series.
