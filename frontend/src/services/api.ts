@@ -5,21 +5,7 @@ const resolveApiUrl = () => {
   if (envUrl && envUrl.trim().length > 0) {
     return envUrl;
   }
-
-  if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
-    const normalizedProtocol = protocol === "file:" ? "http:" : protocol;
-
-    const sanitizedHost = hostname === "::1" ? "127.0.0.1" : hostname;
-
-    if (sanitizedHost === "localhost" || sanitizedHost === "127.0.0.1") {
-      return "http://127.0.0.1:8000/api/ask";
-    }
-
-    return `${normalizedProtocol}//${sanitizedHost}:8000/api/ask`;
-  }
-
-  return "http://127.0.0.1:8000/api/ask";
+  return "/api/ask";
 };
 
 const API_URL = resolveApiUrl();

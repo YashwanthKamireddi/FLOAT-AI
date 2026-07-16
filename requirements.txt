@@ -19,7 +19,8 @@ faiss-cpu
 fastapi
 uvicorn[standard]
 python-dotenv
-pydantic>=1.10,<2
+pydantic>=2.0
+pydantic-settings>=2.0
 certifi
 pytest
 
