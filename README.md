@@ -2,6 +2,8 @@
 
 Conversational ocean intelligence for the ARGO fleet. FloatAI turns plain-English questions into audited SQL, maps, profiles, and time-series insights with provenance you can trust.
 
+![FloatAI](docs/screenshots/floatai-workspace.png)
+
 ## What you can do
 - Ask for latest float locations, health, and trajectories.
 - Pull temperature/salinity profiles and time-series rollups by float or region.
